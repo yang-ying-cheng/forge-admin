@@ -53,7 +53,7 @@
     </MobileSearchDrawer>
 
     <!-- vxe-toolbar 工具栏（桌面端） -->
-    <vxe-toolbar v-if="!isMobile" ref="toolbarRef" custom>
+    <vxe-toolbar v-if="!isMobile" ref="toolbarRef" >
       <template #buttons>
         <el-button type="primary" @click="handleAdd">新增数据</el-button>
       </template>
@@ -79,7 +79,7 @@
       @current-change="handleCurrentChange"
     >
       <!-- 序号列（桌面端） -->
-      <vxe-column v-if="!isMobile" type="seq" title="序号" width="60" :seq-method="seqMethod" />
+      <vxe-column v-if="!isMobile" type="seq" title="序号" width="50" align="center" />
 
       <!-- 字典标签 -->
       <vxe-column field="dictLabel" title="字典标签" width="150" />
@@ -88,10 +88,10 @@
       <vxe-column field="dictValue" title="字典值" width="120" />
 
       <!-- 排序（桌面端） -->
-      <vxe-column v-if="!isMobile" field="dictSort" title="排序" width="80" />
+      <vxe-column v-if="!isMobile" field="dictSort" title="排序" width="70" align="center" />
 
       <!-- CSS样式（桌面端） -->
-      <vxe-column v-if="!isMobile" title="CSS样式" width="120">
+      <vxe-column v-if="!isMobile" title="CSS样式" width="120" align="center">
         <template #default="{ row }">
           <span v-if="row.cssClass" class="dict-value-container">
             <el-tag
@@ -107,14 +107,14 @@
       </vxe-column>
 
       <!-- 表格样式（桌面端） -->
-      <vxe-column v-if="!isMobile" title="表格样式" width="120">
+      <vxe-column v-if="!isMobile" title="表格样式" width="100" align="center">
         <template #default="{ row }">
           <dict-value v-if="row.listClass" :dict-type="DICT_TYPE.SYS_TAG_TYPE" :value="row.listClass" />
         </template>
       </vxe-column>
 
       <!-- 状态 -->
-      <vxe-column title="状态" width="80">
+      <vxe-column title="状态" width="70" align="center">
         <template #default="{ row }">
           <dict-value :dict-type="DICT_TYPE.SYS_NORMAL_DISABLE" :value="row.status" />
         </template>
@@ -124,31 +124,20 @@
       <vxe-column v-if="!isMobile" field="remark" title="备注" min-width="120" />
 
       <!-- 创建时间（桌面端） -->
-      <vxe-column v-if="!isMobile" field="createTime" title="创建时间" width="180">
+      <vxe-column v-if="!isMobile" field="createTime" title="创建时间" width="150" align="center">
         <template #default="{ row }">
           {{ formatDateTime(row.createTime) }}
         </template>
       </vxe-column>
 
       <!-- 桌面端操作列 -->
-      <vxe-column v-if="!isMobile" title="操作" width="150" fixed="right">
+      <vxe-column v-if="!isMobile" title="操作" width="100" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click.stop="handleEdit(row)">编辑</el-button>
           <el-button type="danger" link size="small" @click.stop="handleDelete(row)">删除</el-button>
         </template>
       </vxe-column>
     </vxe-table>
-
-    <!-- 分页 -->
-    <el-pagination
-      v-model:current-page="queryParams.pageNum"
-      v-model:page-size="queryParams.pageSize"
-      :total="total"
-      :page-sizes="[10, 20, 50]"
-      :layout="isMobile ? 'prev, pager, next' : 'total, sizes, prev, pager, next, jumper'"
-      @size-change="getList"
-      @current-change="getList"
-    />
 
     <!-- 移动端底部操作栏 -->
     <MobileBottomActions
@@ -234,7 +223,6 @@ import type { DictData } from '@/types/system'
 import { formatDateTime } from '@/utils/dateFormat'
 import { useResponsive } from '@/composables/useResponsive'
 import { useTableHeight } from '@/composables/useTableHeight'
-import { useTableSeq } from '@/composables/useTableSeq'
 import { useDict } from '@/composables/useDict'
 import { DICT_TYPE } from '@/constants/dict'
 import MobileSearchDrawer from '@/components/MobileSearchDrawer.vue'
@@ -320,7 +308,6 @@ const toolbarRef = ref<VxeToolbarInstance | null>(null)
 
 const loading = ref(false)
 const tableData = ref<DictData[]>([])
-const total = ref(0)
 
 // 移动端状态
 const searchDrawerVisible = ref(false)
@@ -329,15 +316,8 @@ const selectedRow = ref<DictData | null>(null)
 const queryParams = reactive({
   dictType: '',
   dictLabel: '',
-  status: undefined as number | undefined,
-  pageNum: 1,
-  pageSize: 10
+  status: undefined as number | undefined
 })
-
-// 序号计算
-const pageNumRef = computed(() => queryParams.pageNum)
-const pageSizeRef = computed(() => queryParams.pageSize)
-const { seqMethod } = useTableSeq({ currentPage: pageNumRef, pageSize: pageSizeRef })
 
 // 计算激活的搜索条件数量
 const activeConditionsCount = computed(() => {
@@ -380,28 +360,25 @@ const getList = async () => {
   if (!queryParams.dictType) return
   loading.value = true
   try {
-    const res = await getDictDataList(queryParams)
+    const res = await getDictDataList({ ...queryParams, pageNum: 1, pageSize: 9999 })
     tableData.value = res.list
-    total.value = res.total
   } finally {
     loading.value = false
   }
 }
 
 const handleQuery = () => {
-  queryParams.pageNum = 1
   getList()
 }
 
 const handleReset = () => {
   queryParams.dictLabel = ''
   queryParams.status = undefined
-  handleQuery()
+  getList()
 }
 
 // 移动端抽屉搜索
 const handleSearchFromDrawer = () => {
-  queryParams.pageNum = 1
   getList()
 }
 
@@ -517,10 +494,6 @@ watch(
 .dict-data-container {
   .search-form {
     margin-bottom: 15px;
-  }
-  .el-pagination {
-    margin-top: 15px;
-    justify-content: flex-end;
   }
 }
 
