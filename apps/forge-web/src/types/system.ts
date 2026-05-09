@@ -214,6 +214,7 @@ export interface DictType {
   isSystem: number
   remark: string
   createTime: string
+  dataCount: number
 }
 
 // 字典数据

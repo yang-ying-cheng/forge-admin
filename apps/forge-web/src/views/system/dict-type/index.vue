@@ -104,6 +104,9 @@
         <!-- 字典类型 -->
         <vxe-column field="dictType" title="字典类型" width="180" />
 
+        <!-- 记录数 -->
+        <vxe-column field="dataCount" title="记录数" width="80" align="center" />
+
         <!-- 状态 -->
         <vxe-column title="状态" width="80">
           <template #default="{ row }">

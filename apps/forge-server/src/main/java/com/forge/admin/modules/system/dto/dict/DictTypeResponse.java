@@ -16,4 +16,5 @@ public class DictTypeResponse {
     private Integer isSystem;
     private String remark;
     private LocalDateTime createTime;
+    private Long dataCount;
 }

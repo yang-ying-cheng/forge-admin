@@ -9,7 +9,9 @@ import com.forge.admin.common.exception.BusinessException;
 import com.forge.admin.modules.system.dto.dict.DictTypeQueryRequest;
 import com.forge.admin.modules.system.dto.dict.DictTypeRequest;
 import com.forge.admin.modules.system.dto.dict.DictTypeResponse;
+import com.forge.admin.modules.system.entity.SysDictData;
 import com.forge.admin.modules.system.entity.SysDictType;
+import com.forge.admin.modules.system.mapper.SysDictDataMapper;
 import com.forge.admin.modules.system.mapper.SysDictTypeMapper;
 import com.forge.admin.modules.system.service.SysDictTypeService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ import java.util.stream.Collectors;
 public class SysDictTypeServiceImpl extends ServiceImpl<SysDictTypeMapper, SysDictType> implements SysDictTypeService {
 
     private final SysDictTypeMapper sysDictTypeMapper;
+    private final SysDictDataMapper sysDictDataMapper;
 
     @Override
     public Page<DictTypeResponse> pageDictTypes(DictTypeQueryRequest request) {
@@ -43,6 +46,11 @@ public class SysDictTypeServiceImpl extends ServiceImpl<SysDictTypeMapper, SysDi
         responsePage.setTotal(typePage.getTotal());
         responsePage.setRecords(typePage.getRecords().stream()
                 .map(this::convertToResponse)
+                .peek(response -> {
+                    LambdaQueryWrapper<SysDictData> countWrapper = new LambdaQueryWrapper<>();
+                    countWrapper.eq(SysDictData::getDictType, response.getDictType());
+                    response.setDataCount(sysDictDataMapper.selectCount(countWrapper));
+                })
                 .collect(Collectors.toList()));
 
         return responsePage;
