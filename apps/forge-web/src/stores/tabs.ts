@@ -28,14 +28,19 @@ export const useTabsStore = defineStore('tabs', () => {
       .filter((name): name is string => !!name)
   })
 
-  // 从 localStorage 加载标签页
+  // 从 localStorage 加载标签页（刷新时仅保留当前激活标签）
   const loadTabs = () => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY)
       if (saved) {
         const { tabs: savedTabs, activeTab: savedActive } = JSON.parse(saved)
-        tabs.value = savedTabs || []
-        activeTab.value = savedActive || ''
+        const active = savedActive || ''
+        const activeTabItem = (savedTabs || []).find((t: TabItem) => t.path === active)
+        if (activeTabItem) {
+          const homeTab = (savedTabs || []).find((t: TabItem) => t.path === '/dashboard')
+          tabs.value = homeTab && active !== '/dashboard' ? [homeTab, activeTabItem] : [activeTabItem]
+        }
+        activeTab.value = active
       }
     } catch (error) {
       console.error('加载标签页失败:', error)
