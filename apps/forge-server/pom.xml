@@ -26,6 +26,7 @@
         <justauth.version>1.16.6</justauth.version>
         <spring-authorization-server.version>1.2.0</spring-authorization-server.version>
         <lombok.version>1.18.38</lombok.version>
+        <flowable.version>7.0.1</flowable.version>
     </properties>
 
     <dependencies>
@@ -164,6 +165,13 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-oauth2-authorization-server</artifactId>
             <version>${spring-authorization-server.version}</version>
+        </dependency>
+
+        <!-- Flowable 工作流引擎 -->
+        <dependency>
+            <groupId>org.flowable</groupId>
+            <artifactId>flowable-spring-boot-starter-process</artifactId>
+            <version>${flowable.version}</version>
         </dependency>
 
         <!-- Lombok -->

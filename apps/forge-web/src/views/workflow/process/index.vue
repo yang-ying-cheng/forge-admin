@@ -1,0 +1,430 @@
+<template>
+  <div class="app-container">
+    <!-- 搜索栏 -->
+    <el-card shadow="never" class="search-card">
+      <!-- 桌面端搜索表单 -->
+      <el-form v-if="!isMobile" :model="queryParams" inline>
+        <el-form-item label="流程名称">
+          <el-input v-model="queryParams.name" placeholder="请输入流程名称" clearable />
+        </el-form-item>
+        <el-form-item label="流程标识">
+          <el-input v-model="queryParams.key" placeholder="请输入流程标识" clearable />
+        </el-form-item>
+        <el-form-item label="分类">
+          <el-select v-model="queryParams.categoryId" placeholder="请选择分类" clearable style="width: 150px">
+            <el-option
+              v-for="item in categoryList"
+              :key="item.id"
+              :label="item.categoryName"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryParams.suspensionState" placeholder="请选择" clearable style="width: 120px">
+            <el-option label="激活" :value="1" />
+            <el-option label="挂起" :value="2" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleQuery">搜索</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <!-- 移动端搜索按钮 -->
+      <div v-else class="mobile-search-actions">
+        <span class="title">流程定义</span>
+        <div class="actions">
+          <MobileSearchButton :badge-count="activeConditionsCount" @click="searchDrawerVisible = true" />
+          <el-button v-permission="'workflow:process:add'" type="primary" @click="handleAdd">
+            <el-icon><Plus /></el-icon>
+          </el-button>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- 移动端搜索抽屉 -->
+    <MobileSearchDrawer v-model="searchDrawerVisible" :form-data="queryParams" @search="handleSearchFromDrawer" @reset="handleResetFromDrawer">
+      <template #form-items>
+        <el-form-item label="流程名称">
+          <el-input v-model="queryParams.name" placeholder="请输入流程名称" clearable />
+        </el-form-item>
+        <el-form-item label="流程标识">
+          <el-input v-model="queryParams.key" placeholder="请输入流程标识" clearable />
+        </el-form-item>
+        <el-form-item label="分类">
+          <el-select v-model="queryParams.categoryId" placeholder="请选择分类" clearable style="width: 100%">
+            <el-option
+              v-for="item in categoryList"
+              :key="item.id"
+              :label="item.categoryName"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryParams.suspensionState" placeholder="请选择" clearable style="width: 100%">
+            <el-option label="激活" :value="1" />
+            <el-option label="挂起" :value="2" />
+          </el-select>
+        </el-form-item>
+      </template>
+    </MobileSearchDrawer>
+
+    <!-- 数据表格 -->
+    <el-card shadow="never" class="table-card">
+      <!-- vxe-toolbar 工具栏（桌面端） -->
+      <vxe-toolbar v-if="!isMobile" ref="toolbarRef" custom>
+        <template #buttons>
+          <el-button v-permission="'workflow:process:add'" type="primary" @click="handleAdd">
+            <el-icon><Plus /></el-icon>
+            新增流程
+          </el-button>
+        </template>
+        <template #tools>
+          <vxe-button circle icon="vxe-icon-repeat" style="margin-right: 10px" @click="handleReset"></vxe-button>
+        </template>
+      </vxe-toolbar>
+
+      <!-- vxe-table 表格 -->
+      <vxe-table
+        ref="tableRef"
+        id="wfProcessDefinitionTable"
+        :custom-config="{mode: 'modal'}"
+        :data="tableData"
+        :height="tableHeight"
+        :loading="loading"
+        :seq-config="{seqMethod}"
+        :row-config="{ isCurrent: true, isHover: true }"
+        :column-config="{ resizable: true }"
+        border="none"
+        stripe
+        show-overflow="tooltip"
+        show-header-overflow="tooltip"
+        @current-change="handleCurrentChange"
+      >
+        <!-- 序号列（桌面端） -->
+        <vxe-column v-if="!isMobile" type="seq" title="序号" width="60" />
+
+        <!-- 流程名称 -->
+        <vxe-column field="name" title="流程名称" min-width="150" />
+
+        <!-- 流程标识 -->
+        <vxe-column v-if="!isMobile" field="key" title="流程标识" width="150" />
+
+        <!-- 分类 -->
+        <vxe-column v-if="!isMobile" field="categoryName" title="分类" width="120" />
+
+        <!-- 版本（桌面端） -->
+        <vxe-column v-if="!isMobile" field="version" title="版本" width="70" align="center" />
+
+        <!-- 状态 -->
+        <vxe-column title="状态" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.suspensionState === 1 ? 'success' : 'warning'">
+              {{ row.suspensionState === 1 ? '激活' : '挂起' }}
+            </el-tag>
+          </template>
+        </vxe-column>
+
+        <!-- 部署人（桌面端） -->
+        <vxe-column v-if="!isMobile" field="deployUserName" title="部署人" width="100" />
+
+        <!-- 创建时间（桌面端） -->
+        <vxe-column v-if="!isMobile" field="createTime" title="创建时间" width="170">
+          <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
+        </vxe-column>
+
+        <!-- 桌面端操作列 -->
+        <vxe-column v-if="!isMobile" title="操作" width="260" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click.stop="handleDesign(row)">设计</el-button>
+            <el-button type="primary" link size="small" @click.stop="handleViewXml(row)">XML</el-button>
+            <el-button
+              v-if="row.suspensionState === 1"
+              v-permission="'workflow:process:edit'"
+              type="warning" link size="small"
+              @click.stop="handleSuspend(row)"
+            >挂起</el-button>
+            <el-button
+              v-if="row.suspensionState === 2"
+              v-permission="'workflow:process:edit'"
+              type="success" link size="small"
+              @click.stop="handleActivate(row)"
+            >激活</el-button>
+            <el-button
+              v-permission="'workflow:process:delete'"
+              type="danger" link size="small"
+              @click.stop="handleDelete(row)"
+            >删除</el-button>
+          </template>
+        </vxe-column>
+      </vxe-table>
+
+      <TablePagination
+        v-model:page-num="queryParams.pageNum"
+        v-model:page-size="queryParams.pageSize"
+        :total="total"
+        @change="getList"
+      />
+    </el-card>
+
+    <!-- 移动端底部操作栏 -->
+    <MobileBottomActions
+      :show="!!selectedRow"
+      :item="selectedRow"
+      :item-title="selectedRow?.name"
+      @cancel="cancelSelection"
+    >
+      <template #actions="{ item }">
+        <el-button size="small" type="primary" @click.stop="handleDesign(item)">设计</el-button>
+        <el-button size="small" @click.stop="handleViewXml(item)">XML</el-button>
+        <el-button
+          v-if="item.suspensionState === 1"
+          v-permission="'workflow:process:edit'"
+          size="small" type="warning"
+          @click.stop="handleSuspend(item)"
+        >挂起</el-button>
+        <el-button
+          v-if="item.suspensionState === 2"
+          v-permission="'workflow:process:edit'"
+          size="small" type="success"
+          @click.stop="handleActivate(item)"
+        >激活</el-button>
+        <el-button
+          v-permission="'workflow:process:delete'"
+          size="small" type="danger"
+          @click.stop="handleDelete(item)"
+        >删除</el-button>
+      </template>
+    </MobileBottomActions>
+
+    <!-- XML预览对话框 -->
+    <el-dialog v-model="xmlDialogVisible" title="BPMN XML" width="700px">
+      <el-input
+        type="textarea"
+        :model-value="currentXml"
+        :rows="20"
+        readonly
+        style="font-family: monospace"
+      />
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { reactive, ref, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import type { VxeTableInstance, VxeToolbarInstance } from 'vxe-table'
+import { useRouter } from 'vue-router'
+import { processDefinitionApi } from '@/api/workflow/process-definition'
+import { categoryApi } from '@/api/workflow/category'
+import type { ProcessDefinition } from '@/types/workflow'
+import { formatDateTime } from '@/utils/dateFormat'
+import { useResponsive } from '@/composables/useResponsive'
+import { useTableHeight } from '@/composables/useTableHeight'
+import { useTableSeq } from '@/composables/useTableSeq'
+import MobileSearchDrawer from '@/components/MobileSearchDrawer.vue'
+import MobileSearchButton from '@/components/MobileSearchButton.vue'
+import MobileBottomActions from '@/components/MobileBottomActions.vue'
+
+const router = useRouter()
+const { isMobile } = useResponsive()
+
+// 表格高度自适应
+const { tableHeight } = useTableHeight()
+
+// 表格实例
+const tableRef = ref<VxeTableInstance | null>(null)
+const toolbarRef = ref<VxeToolbarInstance | null>(null)
+
+const loading = ref(false)
+const tableData = ref<ProcessDefinition[]>([])
+const total = ref(0)
+
+// 移动端状态
+const searchDrawerVisible = ref(false)
+const selectedRow = ref<ProcessDefinition | null>(null)
+
+// 分类列表
+const categoryList = ref<{ id: number; categoryName: string }[]>([])
+
+const queryParams = reactive({
+  name: '',
+  key: '',
+  categoryId: undefined as number | undefined,
+  suspensionState: undefined as number | undefined,
+  pageNum: 1,
+  pageSize: 20
+})
+
+// 序号计算
+const pageNumRef = computed(() => queryParams.pageNum)
+const pageSizeRef = computed(() => queryParams.pageSize)
+const { seqMethod } = useTableSeq({ currentPage: pageNumRef, pageSize: pageSizeRef }) as any
+
+// 计算激活的搜索条件数量
+const activeConditionsCount = computed(() => {
+  let count = 0
+  if (queryParams.name) count++
+  if (queryParams.key) count++
+  if (queryParams.categoryId !== undefined) count++
+  if (queryParams.suspensionState !== undefined) count++
+  return count
+})
+
+// XML预览
+const xmlDialogVisible = ref(false)
+const currentXml = ref('')
+
+// 关联工具栏与表格
+onMounted(() => {
+  if (tableRef.value && toolbarRef.value) {
+    tableRef.value.connect(toolbarRef.value)
+  }
+})
+
+/** 加载分类列表 */
+const getCategoryList = async () => {
+  try {
+    categoryList.value = await categoryApi.listAll()
+  } catch (e) {
+    // ignore
+  }
+}
+
+/** 获取流程定义列表 */
+const getList = async () => {
+  loading.value = true
+  try {
+    const res = await processDefinitionApi.page(queryParams)
+    tableData.value = res.list
+    total.value = res.total
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleQuery = () => {
+  queryParams.pageNum = 1
+  getList()
+}
+
+const handleReset = () => {
+  queryParams.name = ''
+  queryParams.key = ''
+  queryParams.categoryId = undefined
+  queryParams.suspensionState = undefined
+  handleQuery()
+}
+
+// 移动端抽屉搜索
+const handleSearchFromDrawer = () => {
+  queryParams.pageNum = 1
+  getList()
+}
+
+// 移动端抽屉重置
+const handleResetFromDrawer = () => {
+  handleReset()
+}
+
+/** 新增流程 - 跳转到设计器 */
+const handleAdd = () => {
+  router.push('/workflow/process/designer')
+}
+
+/** 设计流程 - 跳转到设计器并加载已有数据 */
+const handleDesign = (row: ProcessDefinition) => {
+  cancelSelection()
+  router.push({ path: '/workflow/process/designer', query: { id: row.id } })
+}
+
+/** 查看XML */
+const handleViewXml = async (row: ProcessDefinition) => {
+  cancelSelection()
+  try {
+    currentXml.value = await processDefinitionApi.getXml(row.id)
+    xmlDialogVisible.value = true
+  } catch (e) {
+    ElMessage.error('获取XML失败')
+  }
+}
+
+/** 挂起 */
+const handleSuspend = async (row: ProcessDefinition) => {
+  cancelSelection()
+  try {
+    await ElMessageBox.confirm(`确定挂起流程 "${row.name}"？挂起后该流程将无法发起新实例`, '警告', { type: 'warning' })
+    await processDefinitionApi.suspend(row.id)
+    ElMessage.success('挂起成功')
+    getList()
+  } catch (e) {
+    // 用户取消
+  }
+}
+
+/** 激活 */
+const handleActivate = async (row: ProcessDefinition) => {
+  cancelSelection()
+  try {
+    await ElMessageBox.confirm(`确定激活流程 "${row.name}"？`, '提示', { type: 'info' })
+    await processDefinitionApi.activate(row.id)
+    ElMessage.success('激活成功')
+    getList()
+  } catch (e) {
+    // 用户取消
+  }
+}
+
+/** 删除 */
+const handleDelete = async (row: ProcessDefinition) => {
+  cancelSelection()
+  try {
+    await ElMessageBox.confirm(`确定删除流程 "${row.name}"？删除后不可恢复`, '警告', { type: 'warning' })
+    await processDefinitionApi.delete(row.deploymentId)
+    ElMessage.success('删除成功')
+    getList()
+  } catch (e) {
+    // 用户取消
+  }
+}
+
+// 当前行变化（移动端选中）
+const handleCurrentChange = ({ row }: { row: ProcessDefinition | null }) => {
+  if (isMobile.value) {
+    selectedRow.value = row
+  }
+}
+
+// 取消选择
+const cancelSelection = () => {
+  selectedRow.value = null
+  if (tableRef.value) {
+    tableRef.value.clearCurrentRow()
+  }
+}
+
+onMounted(() => {
+  getCategoryList()
+  getList()
+})
+</script>
+
+<style scoped lang="scss">
+.app-container {
+  padding: 0;
+
+  .search-card {
+    margin-bottom: 15px;
+  }
+
+  .table-card {
+    :deep(.el-pagination) {
+      margin-top: 15px;
+      justify-content: flex-end;
+    }
+  }
+}
+</style>

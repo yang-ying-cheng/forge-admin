@@ -46,4 +46,8 @@ public class NotificationMessage implements Serializable {
     public static NotificationMessage system(String title, String content) {
         return new NotificationMessage("system", title, content, null, System.currentTimeMillis());
     }
+
+    public static NotificationMessage workflow(String title, String content, Long taskId) {
+        return new NotificationMessage("workflow", title, content, taskId, System.currentTimeMillis());
+    }
 }

@@ -59,6 +59,13 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
+# Flowable 工作流引擎配置
+flowable:
+  database-schema-update: true
+  history-level: full
+  async-executor-activate: true
+  process-definition-location-prefix: classpath*:/processes/
+
 # Knife4j配置
 springdoc:
   swagger-ui:
