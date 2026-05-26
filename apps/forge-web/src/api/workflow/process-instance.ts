@@ -16,5 +16,7 @@ export const processInstanceApi = {
   getDiagram: (id: string) =>
     request.get(`/workflow/instance/${id}/diagram`, { responseType: 'blob' }),
   getComments: (id: string) =>
-    request.get<ApprovalComment[]>(`/workflow/instance/${id}/comments`).then(res => res.data)
+    request.get<ApprovalComment[]>(`/workflow/instance/${id}/comments`).then(res => res.data),
+  getVariables: (id: string) =>
+    request.get<Record<string, any>>(`/workflow/instance/${id}/variables`).then(res => res.data)
 }

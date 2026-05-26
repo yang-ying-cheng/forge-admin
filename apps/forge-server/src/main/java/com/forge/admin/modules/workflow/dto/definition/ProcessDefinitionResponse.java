@@ -2,6 +2,9 @@ package com.forge.admin.modules.workflow.dto.definition;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+import java.util.Date;
+
 /**
  * 流程定义响应
  *
@@ -83,7 +86,7 @@ public class ProcessDefinitionResponse {
     /**
      * 创建时间（部署时间）
      */
-    private String createTime;
+    private LocalDateTime createTime;
 
     /**
      * 部署人名称

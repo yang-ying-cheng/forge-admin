@@ -17,7 +17,7 @@
     </div>
 
     <div class="editor-body">
-      <FcDesigner ref="designerRef" height="calc(100vh - 60px)" />
+      <FcDesigner ref="designerRef" height="calc(100vh - 60px)" :config="designerConfig" />
     </div>
 
     <!-- 保存对话框 -->
@@ -60,6 +60,18 @@ const saveLoading = ref(false)
 const formRef = ref<FormInstance>()
 
 const isEdit = computed(() => !!route.query.id)
+
+// FcDesigner 配置，包含 AI 智能助理
+// API-KEY 建议从环境变量或后端配置获取
+const designerConfig = {
+  showAi: true,  // 显示 AI 模块
+  ai: {
+    // AI 接口地址（可使用 OpenAI 或其他兼容接口）
+    api: import.meta.env.VITE_AI_API_URL || '',
+    // AI Token / API-KEY
+    token: import.meta.env.VITE_AI_API_KEY || ''
+  }
+}
 
 const saveForm = reactive({
   id: undefined as number | undefined,

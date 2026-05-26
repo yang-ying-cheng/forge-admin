@@ -362,7 +362,7 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
             response.setFormType(ext.getFormType());
             response.setFormId(ext.getFormId());
             if (ext.getCreateTime() != null) {
-                response.setCreateTime(ext.getCreateTime().format(DATE_FORMATTER));
+                response.setCreateTime(ext.getCreateTime());
             }
             // 设置分类名称
             if (ext.getCategoryId() != null && categoryNameMap.containsKey(ext.getCategoryId())) {

@@ -2,6 +2,8 @@ package com.forge.admin.modules.workflow.dto.instance;
 
 import lombok.Data;
 
+import java.util.Date;
+
 /**
  * 流程实例响应
  *
@@ -38,12 +40,12 @@ public class ProcessInstanceResponse {
     /**
      * 开始时间
      */
-    private String startTime;
+    private Date startTime;
 
     /**
      * 结束时间
      */
-    private String endTime;
+    private Date endTime;
 
     /**
      * 耗时（毫秒）

@@ -2,6 +2,7 @@ package com.forge.admin.modules.workflow.dto.task;
 
 import lombok.Data;
 
+import java.util.Date;
 import java.util.Map;
 
 /**
@@ -60,17 +61,17 @@ public class TaskResponse {
     /**
      * 创建时间
      */
-    private String createTime;
+    private Date createTime;
 
     /**
      * 签收时间
      */
-    private String claimTime;
+    private Date claimTime;
 
     /**
      * 到期日期
      */
-    private String dueDate;
+    private Date dueDate;
 
     /**
      * 分类

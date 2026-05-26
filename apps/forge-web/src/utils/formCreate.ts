@@ -26,6 +26,46 @@ export function decodeFields(fields: string): any[] {
   }
 }
 
+/** 布局组件类型列表（这些组件不需要设置 disabled） */
+const layoutComponentTypes = [
+  'row', 'col', 'div', 'card', 'tab', 'tabPane', 'group', 'span',
+  'fcRow', 'fcCol', 'fcDiv', 'fcCard', 'fcTab', 'fcTabPane', 'fcGroup',
+  'el-row', 'el-col', 'el-card', 'el-tabs', 'el-tab-pane'
+]
+
+/** 递归设置字段禁用状态 */
+function setRuleDisabled(rule: any): any {
+  if (!rule) return rule
+
+  // 如果有 children，递归处理
+  if (rule.children && Array.isArray(rule.children)) {
+    rule.children = rule.children.map(child => setRuleDisabled(child))
+  }
+
+  // 获取组件类型
+  const type = rule.type || ''
+
+  // 如果是布局组件，不设置 disabled，只处理 children
+  if (layoutComponentTypes.includes(type)) {
+    return rule
+  }
+
+  // 对非布局组件设置 disabled
+  if (rule.props) {
+    rule.props.disabled = true
+  } else {
+    rule.props = { disabled: true }
+  }
+
+  return rule
+}
+
+/** 解码表单字段并设置为禁用状态 */
+export function decodeFieldsDisabled(fields: string): any[] {
+  const rules = decodeFields(fields)
+  return rules.map(rule => setRuleDisabled(rule))
+}
+
 /** 加载表单配置和字段到 form-create 组件 */
 export function setConfAndFields(
   target: any,

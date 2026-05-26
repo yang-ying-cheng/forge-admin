@@ -222,6 +222,31 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public Map<String, Object> getProcessVariables(String processInstanceId) {
+        // 先尝试从运行中的流程实例获取变量
+        ProcessInstance processInstance = runtimeService.createProcessInstanceQuery()
+                .processInstanceId(processInstanceId)
+                .singleResult();
+
+        if (processInstance != null) {
+            // 运行中的流程，从 RuntimeService 获取变量
+            return runtimeService.getVariables(processInstanceId);
+        }
+
+        // 流程已结束，从历史记录获取变量
+        HistoricProcessInstance historicInstance = historyService.createHistoricProcessInstanceQuery()
+                .processInstanceId(processInstanceId)
+                .includeProcessVariables()
+                .singleResult();
+
+        if (historicInstance != null) {
+            return historicInstance.getProcessVariables();
+        }
+
+        return new HashMap<>();
+    }
+
     // ========== 私有方法 ==========
 
     /**
@@ -382,10 +407,10 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
         response.setBusinessKey(historicInstance.getBusinessKey());
 
         if (historicInstance.getStartTime() != null) {
-            response.setStartTime(formatDate(historicInstance.getStartTime()));
+            response.setStartTime(historicInstance.getStartTime());
         }
         if (historicInstance.getEndTime() != null) {
-            response.setEndTime(formatDate(historicInstance.getEndTime()));
+            response.setEndTime(historicInstance.getEndTime());
         }
         response.setDurationInMillis(historicInstance.getDurationInMillis());
 
@@ -581,7 +606,7 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
         response.setCommentText(comment.getCommentText());
         response.setAttachmentIds(comment.getAttachmentIds());
         if (comment.getCreateTime() != null) {
-            response.setCreateTime(comment.getCreateTime().format(DATE_FORMATTER));
+            response.setCreateTime(comment.getCreateTime());
         }
         return response;
     }

@@ -232,7 +232,7 @@
         <template v-if="startForm.formRule.length > 0">
           <el-divider content-position="left">流程表单</el-divider>
           <form-create
-            v-model="startForm.fApi"
+            v-model="startFormFApi"
             :rule="startForm.formRule"
             :option="startForm.formOption"
           />
@@ -445,12 +445,12 @@ const cancelSelection = () => {
 // 发起流程
 const startDialogVisible = ref(false)
 const startLoading = ref(false)
+const startFormFApi = ref<any>(null)
 const startForm = reactive({
   processDefinitionId: '',
   processName: '',
   businessKey: '',
   comment: '',
-  fApi: null as any,
   formRule: [] as any[],
   formOption: { submitBtn: false, resetBtn: false } as any,
 })
@@ -484,16 +484,23 @@ const handleStartProcess = async (row: ProcessDefinition) => {
 const handleConfirmStart = async () => {
   startLoading.value = true
   try {
-    const variables = startForm.fApi ? startForm.fApi.formData() : undefined
+    // startFormFApi.value 就是表单数据本身（v-model 绑定的）
+    let variables: Record<string, any> | undefined = undefined
+    if (startFormFApi.value && Object.keys(startFormFApi.value).length > 0) {
+      variables = startFormFApi.value
+      console.log('表单数据:', variables)
+    }
+
     await processInstanceApi.start({
       processDefinitionId: startForm.processDefinitionId,
       businessKey: startForm.businessKey || undefined,
-      variables: variables && Object.keys(variables).length > 0 ? variables : undefined,
+      variables: variables,
       comment: startForm.comment || undefined,
     })
     ElMessage.success('流程发起成功')
     startDialogVisible.value = false
-  } catch {
+  } catch (e){
+    console.error( e)
     ElMessage.error('流程发起失败')
   } finally {
     startLoading.value = false

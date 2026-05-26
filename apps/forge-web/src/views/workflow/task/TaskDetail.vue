@@ -22,10 +22,11 @@
         <el-tab-pane label="审批表单" name="approval">
           <el-card shadow="never">
             <!-- 流程表单渲染 -->
-            <template v-if="formRule.length > 0">
+            <template v-if="formReady && formRule.length > 0">
               <el-divider content-position="left">流程表单</el-divider>
               <form-create
-                v-model="fApi"
+                ref="formCreateRef"
+                v-model="formData"
                 :rule="formRule"
                 :option="formOption"
               />
@@ -79,26 +80,23 @@
         <!-- 审批记录 -->
         <el-tab-pane label="审批记录" name="history">
           <el-card shadow="never">
-            <el-timeline>
-              <el-timeline-item
-                v-for="comment in comments"
-                :key="comment.id"
-                :timestamp="formatDateTime(comment.createTime)"
-                placement="top"
-              >
-                <div class="comment-item">
-                  <div class="comment-header">
-                    <span class="user-name">{{ comment.userName }}</span>
-                    <el-tag size="small" :type="actionTagType(comment.actionType)">
-                      {{ actionLabel(comment.actionType) }}
-                    </el-tag>
-                  </div>
-                  <div v-if="comment.taskName" class="task-name">{{ comment.taskName }}</div>
-                  <div v-if="comment.commentText" class="comment-text">{{ comment.commentText }}</div>
-                </div>
-              </el-timeline-item>
-            </el-timeline>
-            <el-empty v-if="!comments.length" description="暂无审批记录" :image-size="60" />
+            <el-table :data="comments" size="small" v-if="comments.length">
+              <el-table-column type="index" label="序号" width="60" align="center" />
+              <el-table-column prop="createTime" label="时间" width="170">
+                <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
+              </el-table-column>
+              <el-table-column prop="userName" label="审批人" width="100" />
+              <el-table-column prop="actionType" label="动作" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="actionTagType(row.actionType)">
+                    {{ actionLabel(row.actionType) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="taskName" label="任务名称" min-width="120" />
+              <el-table-column prop="commentText" label="审批意见" min-width="200" show-overflow-tooltip />
+            </el-table>
+            <el-empty v-else description="暂无审批记录" :image-size="60" />
           </el-card>
         </el-tab-pane>
       </el-tabs>
@@ -219,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { taskApi } from '@/api/workflow/task'
@@ -230,7 +228,7 @@ import { getUserList } from '@/api/system'
 import type { TaskInfo, ApprovalComment } from '@/types/workflow'
 import type { User } from '@/types/system'
 import { formatDateTime } from '@/utils/dateFormat'
-import { decodeFields } from '@/utils/formCreate'
+import { decodeFieldsDisabled } from '@/utils/formCreate'
 import { useResponsive } from '@/composables/useResponsive'
 import BpmnPreview from '@/views/workflow/process/components/BpmnPreview.vue'
 
@@ -255,9 +253,11 @@ const bpmnXml = ref('')
 const comment = ref('')
 
 // 表单相关
-const fApi = ref<any>(null)
+const formCreateRef = ref<any>(null)
 const formRule = ref<any[]>([])
 const formOption = ref({ submitBtn: false, resetBtn: false } as any)
+const formData = ref<Record<string, any>>({})  // 流程变量/表单数据
+const formReady = ref(false)  // 表单是否准备好渲染
 
 // 委派相关
 const delegateDialogVisible = ref(false)
@@ -334,30 +334,61 @@ const getTaskDetail = async () => {
 
       if (instanceData.status === 'fulfilled' && instanceData.value?.processDefinitionId) {
         const processDefId = instanceData.value.processDefinitionId
+        const procInstanceId = task.processInstanceId
+
         // 通过流程定义ID获取 BPMN XML 和表单
         try {
           bpmnXml.value = await processDefinitionApi.getXml(processDefId) || ''
           // 加载流程定义详情获取表单ID
           const processDef = await processDefinitionApi.getById(processDefId)
           if (processDef.formId) {
-            const formData = await formApi.getById(processDef.formId)
-            if (formData.conf && formData.fields) {
-              formRule.value = decodeFields(formData.fields)
+            const formDefData = await formApi.getById(processDef.formId)  // 重命名避免冲突
+            if (formDefData.conf && formDefData.fields) {
+              formRule.value = decodeFieldsDisabled(formDefData.fields)
               try {
-                formOption.value = JSON.parse(formData.conf)
+                formOption.value = JSON.parse(formDefData.conf)
               } catch { /* ignore */ }
               formOption.value.submitBtn = false
               formOption.value.resetBtn = false
+              formOption.value.disabled = true  // 审批时表单只读
+
+              // 获取流程变量并设置到表单
+              try {
+                const variables = await processInstanceApi.getVariables(procInstanceId)
+                formData.value = variables || {}  // 设置表单数据
+              } catch { /* ignore */ }
+
+              // 表单数据和规则都已准备好，开始渲染
+              formReady.value = true
+
+              // 表单渲染后设置为只读状态
+              nextTick(() => {
+                if (formCreateRef.value) {
+                  const fApi = formCreateRef.value.fApi || formCreateRef.value
+                  if (fApi && fApi.disabled) {
+                    fApi.disabled(true)
+                  }
+                }
+              })
             }
+          } else {
+            // 没有表单，也标记为准备好
+            formReady.value = true
           }
         } catch {
           // BPMN XML 或表单获取失败不影响页面展示
+          formReady.value = true
         }
+      } else {
+        // 没有表单，也标记为准备好
+        formReady.value = true
       }
 
       if (commentsData.status === 'fulfilled') {
         comments.value = commentsData.value || []
       }
+    } else {
+      formReady.value = true
     }
   } catch (error) {
     console.error('获取任务详情失败:', error)
@@ -375,10 +406,10 @@ const handleApprove = async () => {
   }
   actionLoading.value = true
   try {
-    const variables = fApi.value ? fApi.value.formData() : undefined
+    const variables = formData.value && Object.keys(formData.value).length > 0 ? formData.value : undefined
     await taskApi.approve(taskId, {
       comment: comment.value,
-      variables: variables && Object.keys(variables).length > 0 ? variables : undefined
+      variables: variables
     })
     ElMessage.success('审批通过')
     router.back()
@@ -399,10 +430,10 @@ const handleReject = async () => {
     await ElMessageBox.confirm('确定要驳回该任务吗？', '提示', { type: 'warning' })
     actionLoading.value = true
     try {
-      const variables = fApi.value ? fApi.value.formData() : undefined
+      const variables = formData.value && Object.keys(formData.value).length > 0 ? formData.value : undefined
       await taskApi.reject(taskId, {
         comment: comment.value,
-        variables: variables && Object.keys(variables).length > 0 ? variables : undefined
+        variables: variables
       })
       ElMessage.success('驳回成功')
       router.back()
@@ -568,24 +599,35 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 4px;
+    flex-wrap: wrap;
+
+    .comment-time {
+      font-size: 13px;
+      color: #909399;
+    }
+
+    .comment-separator {
+      color: #dcdfe6;
+    }
 
     .user-name {
       font-weight: 500;
       font-size: 14px;
+      color: #606266;
     }
-  }
 
-  .task-name {
-    font-size: 13px;
-    color: #909399;
-    margin-bottom: 4px;
+    .task-name {
+      font-size: 13px;
+      color: #909399;
+    }
   }
 
   .comment-text {
     font-size: 13px;
     color: #606266;
     line-height: 1.5;
+    margin-top: 8px;
+    padding-left: 0;
   }
 }
 

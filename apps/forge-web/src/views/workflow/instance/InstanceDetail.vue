@@ -9,17 +9,16 @@
     </div>
 
     <div v-loading="loading" class="detail-content">
-      <div class="diagram-section">
-        <el-card shadow="never">
-          <template #header>流程图</template>
-          <BpmnPreview v-if="bpmnXml" :xml="bpmnXml" />
-          <el-empty v-else description="暂无流程图" />
-        </el-card>
-      </div>
-
       <div class="info-section">
         <el-card shadow="never" class="info-card">
-          <template #header>实例信息</template>
+          <template #header>
+            <div class="card-header">
+              <span>实例信息</span>
+              <el-button type="primary" size="small" @click="diagramDialogVisible = true">
+                查看流程图
+              </el-button>
+            </div>
+          </template>
           <el-descriptions :column="1" size="small" border>
             <el-descriptions-item label="流程名称">
               {{ instance?.processDefinitionName || '-' }}
@@ -41,42 +40,60 @@
           </el-descriptions>
         </el-card>
 
+        <!-- 流程表单 -->
+        <el-card v-if="formReady && formRule.length > 0" shadow="never" class="form-card">
+          <template #header>申请表单</template>
+          <form-create
+            ref="formCreateRef"
+            v-model="formData"
+            :rule="formRule"
+            :option="formOption"
+          />
+        </el-card>
+
         <el-card shadow="never" class="timeline-card">
           <template #header>审批记录</template>
-          <el-timeline>
-            <el-timeline-item
-              v-for="comment in comments"
-              :key="comment.id"
-              :timestamp="formatDateTime(comment.createTime)"
-              placement="top"
-            >
-              <div class="comment-item">
-                <div class="comment-header">
-                  <span class="user-name">{{ comment.userName }}</span>
-                  <el-tag size="small" :type="actionTagType(comment.actionType)">
-                    {{ actionLabel(comment.actionType) }}
-                  </el-tag>
-                </div>
-                <div v-if="comment.taskName" class="task-name">{{ comment.taskName }}</div>
-                <div v-if="comment.commentText" class="comment-text">{{ comment.commentText }}</div>
-              </div>
-            </el-timeline-item>
-          </el-timeline>
-          <el-empty v-if="!comments.length" description="暂无审批记录" :image-size="60" />
+          <el-table :data="comments" size="small" v-if="comments.length">
+            <el-table-column type="index" label="序号" width="60" align="center" />
+            <el-table-column prop="createTime" label="时间" width="170">
+              <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
+            </el-table-column>
+            <el-table-column prop="userName" label="审批人" width="100" />
+            <el-table-column prop="actionType" label="动作" width="80" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="actionTagType(row.actionType)">
+                  {{ actionLabel(row.actionType) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="taskName" label="任务名称" min-width="120" />
+            <el-table-column prop="commentText" label="审批意见" min-width="200" show-overflow-tooltip />
+          </el-table>
+          <el-empty v-else description="暂无审批记录" :image-size="60" />
         </el-card>
       </div>
     </div>
+
+    <!-- 流程图弹窗 -->
+    <el-dialog v-model="diagramDialogVisible" title="流程图" width="800px" top="5vh" @opened="handleDiagramOpened">
+      <div ref="diagramContainerRef" style="height: 60vh">
+        <BpmnPreview v-if="bpmnXml && diagramDialogVisible" :xml="bpmnXml" :key="diagramKey" />
+        <el-empty v-else description="暂无流程图" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { processInstanceApi } from '@/api/workflow/process-instance'
 import { processDefinitionApi } from '@/api/workflow/process-definition'
+import { formApi } from '@/api/workflow/form'
 import type { ProcessInstance, ApprovalComment } from '@/types/workflow'
 import { formatDateTime } from '@/utils/dateFormat'
+import { decodeFieldsDisabled } from '@/utils/formCreate'
 import BpmnPreview from '@/views/workflow/process/components/BpmnPreview.vue'
 
 const route = useRoute()
@@ -86,8 +103,23 @@ const loading = ref(false)
 const instance = ref<ProcessInstance | null>(null)
 const comments = ref<ApprovalComment[]>([])
 const bpmnXml = ref('')
+const diagramDialogVisible = ref(false)
+const diagramContainerRef = ref<HTMLElement | null>(null)
+const diagramKey = ref(0)
 
 const instanceId = route.query.id as string
+
+// 弹窗打开后触发 resize
+const handleDiagramOpened = () => {
+  diagramKey.value++
+}
+
+// 表单相关
+const formCreateRef = ref<any>(null)
+const formRule = ref<any[]>([])
+const formOption = ref({ submitBtn: false, resetBtn: false, disabled: true } as any)
+const formData = ref<Record<string, any>>({})
+const formReady = ref(false)
 
 // 审批动作标签映射
 const actionLabel = (actionType: string): string => {
@@ -127,13 +159,51 @@ const getInstanceDetail = async () => {
 
     if (instanceData.status === 'fulfilled') {
       instance.value = instanceData.value
-      // 通过流程定义ID获取 BPMN XML
+      // 通过流程定义ID获取 BPMN XML 和表单
       if (instanceData.value?.processDefinitionId) {
+        const processDefId = instanceData.value.processDefinitionId
         try {
-          bpmnXml.value = await processDefinitionApi.getXml(instanceData.value.processDefinitionId) || ''
+          bpmnXml.value = await processDefinitionApi.getXml(processDefId) || ''
+          // 加载流程定义详情获取表单ID
+          const processDef = await processDefinitionApi.getById(processDefId)
+          if (processDef.formId) {
+            const formDefData = await formApi.getById(processDef.formId)
+            if (formDefData.conf && formDefData.fields) {
+              formRule.value = decodeFieldsDisabled(formDefData.fields)
+              console.log('formRule.value', formRule.value)
+              try {
+                formOption.value = JSON.parse(formDefData.conf)
+              } catch { /* ignore */ }
+              formOption.value.submitBtn = false
+              formOption.value.resetBtn = false
+              formOption.value.disabled = true
+
+              // 获取流程变量
+              try {
+                const variables = await processInstanceApi.getVariables(instanceId)
+                formData.value = variables || {}
+              } catch { /* ignore */ }
+
+              formReady.value = true
+
+              // 表单渲染后设置为只读
+              nextTick(() => {
+                if (formCreateRef.value) {
+                  const fApi = formCreateRef.value.fApi || formCreateRef.value
+                  if (fApi && fApi.disabled) {
+                    fApi.disabled(true)
+                  }
+                }
+              })
+            }
+          } else {
+            formReady.value = true
+          }
         } catch {
-          // BPMN XML 获取失败不影响页面展示
+          formReady.value = true
         }
+      } else {
+        formReady.value = true
       }
     }
 
@@ -166,36 +236,26 @@ onMounted(() => {
 }
 
 .detail-content {
-  display: flex;
-  gap: 16px;
   padding: 16px 20px;
-  height: calc(100vh - 140px);
-
-  .diagram-section {
-    flex: 3;
-    min-width: 0;
-
-    :deep(.el-card) {
-      height: 100%;
-
-      .el-card__body {
-        height: calc(100% - 50px);
-        overflow: auto;
-      }
-    }
-  }
 
   .info-section {
-    flex: 2;
-    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 16px;
+    max-width: 800px;
 
-    .info-card,
+    .info-card {
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+    }
+
+    .form-card,
     .timeline-card {
       :deep(.el-card__body) {
-        max-height: 300px;
+        max-height: 400px;
         overflow-y: auto;
       }
     }
@@ -216,35 +276,42 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 4px;
+    flex-wrap: wrap;
+
+    .comment-time {
+      font-size: 13px;
+      color: #909399;
+    }
+
+    .comment-separator {
+      color: #dcdfe6;
+    }
 
     .user-name {
       font-weight: 500;
       font-size: 14px;
+      color: #606266;
     }
-  }
 
-  .task-name {
-    font-size: 13px;
-    color: #909399;
-    margin-bottom: 4px;
+    .task-name {
+      font-size: 13px;
+      color: #909399;
+    }
   }
 
   .comment-text {
     font-size: 13px;
     color: #606266;
     line-height: 1.5;
+    margin-top: 8px;
+    padding-left: 0;
   }
 }
 
 @media (max-width: 768px) {
   .detail-content {
-    flex-direction: column;
-    height: auto;
-
-    .diagram-section,
     .info-section {
-      flex: none;
+      max-width: 100%;
     }
   }
 }

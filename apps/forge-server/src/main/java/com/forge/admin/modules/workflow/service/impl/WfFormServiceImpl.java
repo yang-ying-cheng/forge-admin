@@ -56,7 +56,7 @@ public class WfFormServiceImpl extends ServiceImpl<WfFormMapper, WfForm> impleme
     @Override
     public List<FormSimpleResponse> listAllSimple() {
         LambdaQueryWrapper<WfForm> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(WfForm::getStatus, 1)
+        wrapper.eq(WfForm::getStatus, 0)  // 0=正常状态
                 .orderByDesc(WfForm::getCreateTime);
 
         List<WfForm> forms = wfFormMapper.selectList(wrapper);

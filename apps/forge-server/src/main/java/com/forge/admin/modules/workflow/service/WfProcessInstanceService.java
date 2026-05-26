@@ -8,6 +8,7 @@ import com.forge.admin.modules.workflow.dto.instance.ProcessStartRequest;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 流程实例管理服务接口
@@ -69,4 +70,12 @@ public interface WfProcessInstanceService {
      * @return 审批意见列表
      */
     List<ApprovalCommentResponse> getApprovalComments(String processInstanceId);
+
+    /**
+     * 获取流程实例的流程变量
+     *
+     * @param processInstanceId 流程实例ID
+     * @return 流程变量Map
+     */
+    Map<String, Object> getProcessVariables(String processInstanceId);
 }

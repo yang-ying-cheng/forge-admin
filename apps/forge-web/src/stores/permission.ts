@@ -8,84 +8,6 @@ export const usePermissionStore = defineStore('permission', () => {
   const routes = ref<RouteRecordRaw[]>([])
   const isRoutesLoaded = ref(false)
 
-  // 根据菜单生成路由
-  const generateRoutes = (menus: MenuTree[]): RouteRecordRaw[] => {
-    const result: RouteRecordRaw[] = []
-
-    for (const menu of menus) {
-      // 只处理目录和菜单类型（不处理按钮）
-      if (menu.menuType === 2) continue
-
-      const route: RouteRecordRaw = {
-        path: menu.routePath || '',
-        name: `menu_${menu.id}`,
-        meta: {
-          title: menu.menuName,
-          icon: menu.icon,
-          hidden: menu.visible !== 1
-        },
-        children: []
-      }
-
-      // 设置组件
-      if (menu.componentPath) {
-        if (menu.componentPath === 'Layout') {
-          route.component = LAYOUT_COMPONENT
-          route.redirect = menu.redirectPath || undefined
-        } else {
-          route.component = loadComponent(menu.componentPath)
-        }
-      }
-
-      // 递归处理子菜单
-      if (menu.children && menu.children.length > 0) {
-        const childRoutes = generateChildRoutes(menu.children, menu.routePath || '')
-        if (childRoutes.length > 0) {
-          route.children = childRoutes
-        }
-      }
-
-      result.push(route)
-    }
-
-    return result
-  }
-
-  // 生成子路由
-  const generateChildRoutes = (menus: MenuTree[], parentPath: string): RouteRecordRaw[] => {
-    const result: RouteRecordRaw[] = []
-
-    for (const menu of menus) {
-      if (menu.menuType === 2) continue
-
-      const route: RouteRecordRaw = {
-        path: menu.routePath || '',
-        name: `menu_${menu.id}`,
-        meta: {
-          title: menu.menuName,
-          icon: menu.icon,
-          hidden: menu.visible !== 1
-        },
-        children: []
-      }
-
-      if (menu.componentPath) {
-        route.component = loadComponent(menu.componentPath)
-      }
-
-      if (menu.children && menu.children.length > 0) {
-        const childRoutes = generateChildRoutes(menu.children, menu.routePath || '')
-        if (childRoutes.length > 0) {
-          route.children = childRoutes
-        }
-      }
-
-      result.push(route)
-    }
-
-    return result
-  }
-
   // 设置路由
   const setRoutes = (menus: MenuTree[]) => {
     const childrenRoutes: RouteRecordRaw[] = []
@@ -106,40 +28,46 @@ export const usePermissionStore = defineStore('permission', () => {
       meta: { title: '个人中心', icon: 'User', hidden: true }
     } as RouteRecordRaw)
 
-    // 3. 处理后端菜单，递归提取所有子路由
-    const extractChildRoutes = (menus: MenuTree[]) => {
+    // 3. 递归提取所有有组件路径的菜单，生成平级路由
+    const extractRoutes = (menus: MenuTree[]) => {
       for (const menu of menus) {
         if (menu.menuType === 2) continue // 跳过按钮
 
-        if (import.meta.env.DEV) {
-          console.log(`[路由] 处理菜单: ${menu.menuName} (${menu.routePath}), 组件: ${menu.componentPath}`)
-        }
+        // 只处理有组件路径的菜单（排除 Layout 类型）
+        if (menu.componentPath && menu.componentPath !== 'Layout' && menu.componentPath !== 'Layouts') {
+          const route: RouteRecordRaw = {
+            path: menu.routePath || '',
+            name: menu.menuCode || `menu_${menu.id}`,
+            meta: {
+              title: menu.menuName,
+              icon: menu.icon || '',
+              hidden: menu.visible !== 1,
+              menuId: menu.id,
+              menuType: menu.menuType,
+              keepAlive: menu.isCached === 1
+            },
+            component: loadComponent(menu.componentPath, menu.menuCode || `menu_${menu.id}`)
+          }
 
-        // 处理有组件路径的菜单（页面）
-        const childRoute = generateSingleRoute(menu, '')
-        if (childRoute) {
+          if (import.meta.env.DEV) {
+            console.log(`[路由] 添加路由: ${menu.menuName} -> ${menu.routePath}`)
+          }
+
           // 检查路由是否已存在，避免重复
-          const exists = childrenRoutes.some(r => r.path === childRoute.path)
+          const exists = childrenRoutes.some(r => r.path === route.path)
           if (!exists) {
-            childrenRoutes.push(childRoute)
-          } else if (import.meta.env.DEV) {
-            console.log(`[路由] 路由已存在，跳过: ${childRoute.path}`)
+            childrenRoutes.push(route)
           }
         }
 
         // 递归处理子菜单
         if (menu.children?.length) {
-          extractChildRoutes(menu.children)
+          extractRoutes(menu.children)
         }
       }
     }
 
-    for (const menu of menus) {
-      if (menu.menuType === 2) continue // 跳过按钮
-      if (menu.children?.length) {
-        extractChildRoutes(menu.children)
-      }
-    }
+    extractRoutes(menus)
 
     // 4. 主布局路由
     routes.value = [
@@ -159,43 +87,6 @@ export const usePermissionStore = defineStore('permission', () => {
     }
   }
 
-  // 生成单个路由
-  const generateSingleRoute = (menu: MenuTree, parentPath: string): RouteRecordRaw | null => {
-    if (menu.menuType === 2) return null // 跳过按钮
-
-    let routePath = menu.routePath || ''
-    if (!routePath) {
-      console.warn(`[路由] 菜单 ${menu.menuName} (id=${menu.id}) 没有路由路径`)
-      return null
-    }
-
-    const route: any = {
-      path: routePath,
-      name: menu.menuCode || `menu_${menu.id}`,
-      meta: {
-        title: menu.menuName,
-        icon: menu.icon || '',
-        hidden: menu.visible !== 1,
-        menuId: menu.id,
-        menuType: menu.menuType,
-        keepAlive: menu.isCached === 1
-      }
-    }
-
-    // 动态加载组件
-    if (menu.componentPath) {
-      const routeName = menu.menuCode || `menu_${menu.id}`
-      route.component = loadComponent(menu.componentPath, routeName)
-      if (import.meta.env.DEV) {
-        console.log(`[路由] 加载组件: ${menu.menuName} -> ${menu.componentPath} (name: ${routeName})`)
-      }
-    } else {
-      console.warn(`[路由] 菜单 ${menu.menuName} (id=${menu.id}) 没有组件路径`)
-    }
-
-    return route
-  }
-
   // 重置路由
   const resetRoutes = () => {
     routes.value = []
@@ -205,7 +96,6 @@ export const usePermissionStore = defineStore('permission', () => {
   return {
     routes,
     isRoutesLoaded,
-    generateRoutes,
     setRoutes,
     resetRoutes
   }

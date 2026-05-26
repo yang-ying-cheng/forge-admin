@@ -476,13 +476,13 @@ public class WfTaskServiceImpl implements WfTaskService {
         }
 
         if (task.getCreateTime() != null) {
-            response.setCreateTime(formatDate(task.getCreateTime()));
+            response.setCreateTime(task.getCreateTime());
         }
         if (task.getClaimTime() != null) {
-            response.setClaimTime(formatDate(task.getClaimTime()));
+            response.setClaimTime(task.getClaimTime());
         }
         if (task.getDueDate() != null) {
-            response.setDueDate(formatDate(task.getDueDate()));
+            response.setDueDate(task.getDueDate());
         }
         response.setCategory(task.getCategory());
 
@@ -527,13 +527,13 @@ public class WfTaskServiceImpl implements WfTaskService {
         }
 
         if (historicTask.getCreateTime() != null) {
-            response.setCreateTime(formatDate(historicTask.getCreateTime()));
+            response.setCreateTime(historicTask.getCreateTime());
         }
         if (historicTask.getClaimTime() != null) {
-            response.setClaimTime(formatDate(historicTask.getClaimTime()));
+            response.setClaimTime(historicTask.getClaimTime());
         }
         if (historicTask.getDueDate() != null) {
-            response.setDueDate(formatDate(historicTask.getDueDate()));
+            response.setDueDate(historicTask.getDueDate());
         }
         response.setCategory(historicTask.getCategory());
 

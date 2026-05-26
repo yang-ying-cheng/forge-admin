@@ -2,6 +2,9 @@ package com.forge.admin.modules.workflow.dto.comment;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+import java.util.Date;
+
 /**
  * 审批意见响应
  *
@@ -63,5 +66,5 @@ public class ApprovalCommentResponse {
     /**
      * 创建时间
      */
-    private String createTime;
+    private LocalDateTime createTime;
 }

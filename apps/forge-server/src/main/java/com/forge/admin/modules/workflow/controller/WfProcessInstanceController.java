@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 流程实例管理控制器
@@ -101,5 +102,12 @@ public class WfProcessInstanceController {
     @PreAuthorize("hasAuthority('workflow:instance:query')")
     public Result<List<ApprovalCommentResponse>> getComments(@PathVariable String id) {
         return Result.success(wfProcessInstanceService.getApprovalComments(id));
+    }
+
+    @Operation(summary = "获取流程实例变量")
+    @GetMapping("/{id}/variables")
+    @PreAuthorize("hasAuthority('workflow:instance:query')")
+    public Result<Map<String, Object>> getVariables(@PathVariable String id) {
+        return Result.success(wfProcessInstanceService.getProcessVariables(id));
     }
 }

@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import LogicFlow from '@logicflow/core'
 import '@logicflow/core/dist/index.css'
 import '@logicflow/extension/lib/style/index.css'
@@ -17,7 +17,7 @@ const props = defineProps<{
 const containerRef = ref<HTMLElement | null>(null)
 let lfInstance: LogicFlow | null = null
 
-const renderDiagram = () => {
+const renderDiagram = async () => {
   if (!containerRef.value || !props.xml) return
 
   if (!lfInstance) {
@@ -36,6 +36,12 @@ const renderDiagram = () => {
     ;(lfInstance as any).renderRawData(graphData)
   } else {
     ;(lfInstance as any).render(props.xml)
+  }
+
+  // 等待渲染完成后自动缩放适配容器
+  await nextTick()
+  if (lfInstance) {
+    lfInstance.fitView(20)  // 20px 边距
   }
 }
 
