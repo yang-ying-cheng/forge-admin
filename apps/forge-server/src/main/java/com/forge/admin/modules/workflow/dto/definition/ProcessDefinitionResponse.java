@@ -61,6 +61,16 @@ public class ProcessDefinitionResponse {
     private String formKey;
 
     /**
+     * 表单类型(10流程表单 20业务表单)
+     */
+    private Integer formType;
+
+    /**
+     * 关联表单ID
+     */
+    private Long formId;
+
+    /**
      * 资源名称
      */
     private String resourceName;

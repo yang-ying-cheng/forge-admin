@@ -2,7 +2,7 @@
   <div class="error-page">
     <div class="error-content">
       <h1>503</h1>
-      <p>抱歉，服务暂时不可用，p>
+      <p>抱歉，服务暂时不可用</p>
       <el-button type="primary" @click="$router.push('/')">返回首页</el-button>
     </div>
   </div>

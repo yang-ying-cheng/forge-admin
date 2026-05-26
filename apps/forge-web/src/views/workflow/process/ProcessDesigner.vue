@@ -70,6 +70,22 @@
         <el-form-item label="描述">
           <el-input v-model="deployForm.description" type="textarea" :rows="3" placeholder="请输入流程描述" />
         </el-form-item>
+        <el-form-item label="表单类型">
+          <el-select v-model="deployForm.formType" placeholder="请选择表单类型" clearable style="width: 100%">
+            <el-option label="流程表单" :value="10" />
+            <el-option label="业务表单" :value="20" />
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="deployForm.formType" label="关联表单">
+          <el-select v-model="deployForm.formId" placeholder="请选择表单" clearable filterable style="width: 100%">
+            <el-option
+              v-for="item in formList"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="deployDialogVisible = false">取消</el-button>
@@ -86,6 +102,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { processDefinitionApi } from '@/api/workflow/process-definition'
 import { categoryApi } from '@/api/workflow/category'
+import { formApi } from '@/api/workflow/form'
 import BpmnDesigner from './components/BpmnDesigner.vue'
 import BpmnPalette from './components/BpmnPalette.vue'
 import BpmnPropertiesPanel from './components/BpmnPropertiesPanel.vue'
@@ -105,6 +122,9 @@ const isEdit = computed(() => !!route.query.id)
 // 分类列表
 const categoryList = ref<{ id: number; categoryName: string }[]>([])
 
+// 表单列表
+const formList = ref<{ id: number; name: string }[]>([])
+
 // 部署对话框
 const deployDialogVisible = ref(false)
 const deployLoading = ref(false)
@@ -114,7 +134,9 @@ const deployForm = reactive({
   name: '',
   key: '',
   categoryId: undefined as number | undefined,
-  description: ''
+  description: '',
+  formType: undefined as number | undefined,
+  formId: undefined as number | undefined,
 })
 const deployRules: FormRules = {
   name: [{ required: true, message: '请输入流程名称', trigger: 'blur' }],
@@ -154,6 +176,8 @@ const loadExistingProcess = async (id: string) => {
       deployForm.key = detail.key || ''
       deployForm.categoryId = detail.categoryId || undefined
       deployForm.description = detail.description || ''
+      deployForm.formType = detail.formType || undefined
+      deployForm.formId = detail.formId || undefined
     }
   } catch (e) {
     ElMessage.error('加载流程定义失败')
@@ -208,6 +232,8 @@ const handleOpenDeployDialog = () => {
     deployForm.key = ''
     deployForm.categoryId = undefined
     deployForm.description = ''
+    deployForm.formType = undefined
+    deployForm.formId = undefined
   }
   // 编辑模式下表单已由 loadExistingProcess 预填，保留用户可修改
   deployDialogVisible.value = true
@@ -247,6 +273,8 @@ const handleDeploy = async () => {
       key: deployForm.key,
       categoryId: deployForm.categoryId,
       description: deployForm.description,
+      formType: deployForm.formType,
+      formId: deployForm.formId,
       bpmnXml
     })
     ElMessage.success('部署成功')
@@ -268,8 +296,18 @@ const getCategoryList = async () => {
   }
 }
 
+/** 加载表单列表 */
+const getFormList = async () => {
+  try {
+    formList.value = await formApi.listAll()
+  } catch (e) {
+    // ignore
+  }
+}
+
 onMounted(() => {
   getCategoryList()
+  getFormList()
 })
 </script>
 

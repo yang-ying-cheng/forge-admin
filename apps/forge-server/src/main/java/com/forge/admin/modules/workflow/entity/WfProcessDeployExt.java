@@ -53,6 +53,16 @@ public class WfProcessDeployExt {
     private String formKey;
 
     /**
+     * 表单类型(10流程表单 20业务表单)
+     */
+    private Integer formType;
+
+    /**
+     * 关联表单ID
+     */
+    private Long formId;
+
+    /**
      * BPMN XML内容
      */
     private String bpmnXml;

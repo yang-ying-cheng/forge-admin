@@ -38,4 +38,14 @@ public class ProcessDeployRequest {
      */
     @NotBlank(message = "BPMN XML内容不能为空")
     private String bpmnXml;
+
+    /**
+     * 表单类型(10流程表单 20业务表单)
+     */
+    private Integer formType;
+
+    /**
+     * 关联表单ID
+     */
+    private Long formId;
 }

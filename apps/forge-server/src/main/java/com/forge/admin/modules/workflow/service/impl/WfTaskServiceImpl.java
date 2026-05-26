@@ -109,8 +109,11 @@ public class WfTaskServiceImpl implements WfTaskService {
         int offset = (request.getPageNum() - 1) * request.getPageSize();
         List<HistoricTaskInstance> tasks = query.listPage(offset, request.getPageSize());
 
+        Map<String, ProcessDefinition> definitionCache = batchLoadHistoricProcessDefinitions(tasks);
+        Map<Long, String> userNameCache = batchLoadHistoricUserNames(tasks);
+
         List<TaskResponse> records = tasks.stream()
-                .map(this::convertHistoricTaskToResponse)
+                .map(task -> convertHistoricTaskToResponse(task, definitionCache, userNameCache))
                 .collect(Collectors.toList());
 
         Page<TaskResponse> resultPage = new Page<>();
@@ -128,7 +131,9 @@ public class WfTaskServiceImpl implements WfTaskService {
                 .singleResult();
 
         if (task != null) {
-            return convertTaskToResponse(task);
+            Map<String, ProcessDefinition> defCache = batchLoadProcessDefinitions(List.of(task));
+            Map<Long, String> userCache = batchLoadUserNames(List.of(task));
+            return convertTaskToResponse(task, defCache, userCache);
         }
 
         // 如果运行时任务不存在，尝试从历史记录获取
@@ -140,7 +145,9 @@ public class WfTaskServiceImpl implements WfTaskService {
             throw new BusinessException(404, "任务不存在");
         }
 
-        return convertHistoricTaskToResponse(historicTask);
+        Map<String, ProcessDefinition> defCache = batchLoadHistoricProcessDefinitions(List.of(historicTask));
+        Map<Long, String> userCache = batchLoadHistoricUserNames(List.of(historicTask));
+        return convertHistoricTaskToResponse(historicTask, defCache, userCache);
     }
 
     @Override
@@ -404,11 +411,23 @@ public class WfTaskServiceImpl implements WfTaskService {
     }
 
     /**
-     * 构建运行时任务分页结果
+     * 构建运行时任务分页结果（批量预加载关联数据，避免 N+1 查询）
      */
     private Page<TaskResponse> buildTaskPage(List<Task> tasks, long total, int pageNum, int pageSize) {
+        if (tasks.isEmpty()) {
+            Page<TaskResponse> resultPage = new Page<>();
+            resultPage.setCurrent(pageNum);
+            resultPage.setSize(pageSize);
+            resultPage.setTotal(total);
+            resultPage.setRecords(Collections.emptyList());
+            return resultPage;
+        }
+
+        Map<String, ProcessDefinition> definitionCache = batchLoadProcessDefinitions(tasks);
+        Map<Long, String> userNameCache = batchLoadUserNames(tasks);
+
         List<TaskResponse> records = tasks.stream()
-                .map(this::convertTaskToResponse)
+                .map(task -> convertTaskToResponse(task, definitionCache, userNameCache))
                 .collect(Collectors.toList());
 
         Page<TaskResponse> resultPage = new Page<>();
@@ -420,31 +439,27 @@ public class WfTaskServiceImpl implements WfTaskService {
     }
 
     /**
-     * 将运行时任务转换为响应对象
+     * 将运行时任务转换为响应对象（使用缓存的流程定义和用户名）
      */
-    private TaskResponse convertTaskToResponse(Task task) {
+    private TaskResponse convertTaskToResponse(Task task,
+                                                Map<String, ProcessDefinition> definitionCache,
+                                                Map<Long, String> userNameCache) {
         TaskResponse response = new TaskResponse();
         response.setId(task.getId());
         response.setName(task.getName());
         response.setTaskDefinitionKey(task.getTaskDefinitionKey());
         response.setProcessInstanceId(task.getProcessInstanceId());
 
-        // 获取流程定义名称
-        ProcessInstance processInstance = runtimeService.createProcessInstanceQuery()
-                .processInstanceId(task.getProcessInstanceId())
-                .singleResult();
-        if (processInstance != null) {
-            ProcessDefinition definition = repositoryService.getProcessDefinition(processInstance.getProcessDefinitionId());
-            if (definition != null) {
-                response.setProcessDefinitionName(definition.getName());
-            }
+        ProcessDefinition definition = definitionCache.get(task.getProcessInstanceId());
+        if (definition != null) {
+            response.setProcessDefinitionName(definition.getName());
         }
 
         response.setAssignee(task.getAssignee());
         if (StrUtil.isNotBlank(task.getAssignee())) {
             try {
                 Long assigneeId = Long.parseLong(task.getAssignee());
-                response.setAssigneeName(flowableIdentityService.getUserName(assigneeId));
+                response.setAssigneeName(userNameCache.getOrDefault(assigneeId, task.getAssignee()));
             } catch (NumberFormatException e) {
                 response.setAssigneeName(task.getAssignee());
             }
@@ -454,7 +469,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         if (StrUtil.isNotBlank(task.getOwner())) {
             try {
                 Long ownerId = Long.parseLong(task.getOwner());
-                response.setOwnerName(flowableIdentityService.getUserName(ownerId));
+                response.setOwnerName(userNameCache.getOrDefault(ownerId, task.getOwner()));
             } catch (NumberFormatException e) {
                 response.setOwnerName(task.getOwner());
             }
@@ -475,31 +490,27 @@ public class WfTaskServiceImpl implements WfTaskService {
     }
 
     /**
-     * 将历史任务转换为响应对象
+     * 将历史任务转换为响应对象（使用缓存的流程定义和用户名）
      */
-    private TaskResponse convertHistoricTaskToResponse(HistoricTaskInstance historicTask) {
+    private TaskResponse convertHistoricTaskToResponse(HistoricTaskInstance historicTask,
+                                                        Map<String, ProcessDefinition> definitionCache,
+                                                        Map<Long, String> userNameCache) {
         TaskResponse response = new TaskResponse();
         response.setId(historicTask.getId());
         response.setName(historicTask.getName());
         response.setTaskDefinitionKey(historicTask.getTaskDefinitionKey());
         response.setProcessInstanceId(historicTask.getProcessInstanceId());
 
-        // 获取流程定义名称
-        HistoricProcessInstance historicProcessInstance = historyService.createHistoricProcessInstanceQuery()
-                .processInstanceId(historicTask.getProcessInstanceId())
-                .singleResult();
-        if (historicProcessInstance != null) {
-            ProcessDefinition definition = repositoryService.getProcessDefinition(historicProcessInstance.getProcessDefinitionId());
-            if (definition != null) {
-                response.setProcessDefinitionName(definition.getName());
-            }
+        ProcessDefinition definition = definitionCache.get(historicTask.getProcessInstanceId());
+        if (definition != null) {
+            response.setProcessDefinitionName(definition.getName());
         }
 
         response.setAssignee(historicTask.getAssignee());
         if (StrUtil.isNotBlank(historicTask.getAssignee())) {
             try {
                 Long assigneeId = Long.parseLong(historicTask.getAssignee());
-                response.setAssigneeName(flowableIdentityService.getUserName(assigneeId));
+                response.setAssigneeName(userNameCache.getOrDefault(assigneeId, historicTask.getAssignee()));
             } catch (NumberFormatException e) {
                 response.setAssigneeName(historicTask.getAssignee());
             }
@@ -509,7 +520,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         if (StrUtil.isNotBlank(historicTask.getOwner())) {
             try {
                 Long ownerId = Long.parseLong(historicTask.getOwner());
-                response.setOwnerName(flowableIdentityService.getUserName(ownerId));
+                response.setOwnerName(userNameCache.getOrDefault(ownerId, historicTask.getOwner()));
             } catch (NumberFormatException e) {
                 response.setOwnerName(historicTask.getOwner());
             }
@@ -527,6 +538,90 @@ public class WfTaskServiceImpl implements WfTaskService {
         response.setCategory(historicTask.getCategory());
 
         return response;
+    }
+
+    /**
+     * 批量加载运行时任务关联的流程定义
+     */
+    private Map<String, ProcessDefinition> batchLoadProcessDefinitions(List<Task> tasks) {
+        Set<String> processInstanceIds = tasks.stream()
+                .map(Task::getProcessInstanceId)
+                .collect(Collectors.toSet());
+
+        Map<String, String> instanceToDefId = new HashMap<>();
+        runtimeService.createProcessInstanceQuery()
+                .processInstanceIds(processInstanceIds)
+                .list()
+                .forEach(pi -> instanceToDefId.put(pi.getId(), pi.getProcessDefinitionId()));
+
+        Map<String, ProcessDefinition> result = new HashMap<>();
+        instanceToDefId.values().stream().distinct().forEach(defId -> {
+            ProcessDefinition def = repositoryService.getProcessDefinition(defId);
+            if (def != null) {
+                instanceToDefId.forEach((instId, dId) -> {
+                    if (dId.equals(defId)) result.put(instId, def);
+                });
+            }
+        });
+        return result;
+    }
+
+    /**
+     * 批量加载历史任务关联的流程定义
+     */
+    private Map<String, ProcessDefinition> batchLoadHistoricProcessDefinitions(List<HistoricTaskInstance> tasks) {
+        Set<String> processInstanceIds = tasks.stream()
+                .map(HistoricTaskInstance::getProcessInstanceId)
+                .collect(Collectors.toSet());
+
+        Map<String, String> instanceToDefId = new HashMap<>();
+        historyService.createHistoricProcessInstanceQuery()
+                .processInstanceIds(processInstanceIds)
+                .list()
+                .forEach(pi -> instanceToDefId.put(pi.getId(), pi.getProcessDefinitionId()));
+
+        Map<String, ProcessDefinition> result = new HashMap<>();
+        instanceToDefId.values().stream().distinct().forEach(defId -> {
+            ProcessDefinition def = repositoryService.getProcessDefinition(defId);
+            if (def != null) {
+                instanceToDefId.forEach((instId, dId) -> {
+                    if (dId.equals(defId)) result.put(instId, def);
+                });
+            }
+        });
+        return result;
+    }
+
+    /**
+     * 批量加载运行时任务中的用户名称
+     */
+    private Map<Long, String> batchLoadUserNames(List<Task> tasks) {
+        Set<Long> userIds = new HashSet<>();
+        for (Task task : tasks) {
+            if (StrUtil.isNotBlank(task.getAssignee())) {
+                try { userIds.add(Long.parseLong(task.getAssignee())); } catch (NumberFormatException ignored) {}
+            }
+            if (StrUtil.isNotBlank(task.getOwner())) {
+                try { userIds.add(Long.parseLong(task.getOwner())); } catch (NumberFormatException ignored) {}
+            }
+        }
+        return flowableIdentityService.getUserNames(userIds);
+    }
+
+    /**
+     * 批量加载历史任务中的用户名称
+     */
+    private Map<Long, String> batchLoadHistoricUserNames(List<HistoricTaskInstance> tasks) {
+        Set<Long> userIds = new HashSet<>();
+        for (HistoricTaskInstance task : tasks) {
+            if (StrUtil.isNotBlank(task.getAssignee())) {
+                try { userIds.add(Long.parseLong(task.getAssignee())); } catch (NumberFormatException ignored) {}
+            }
+            if (StrUtil.isNotBlank(task.getOwner())) {
+                try { userIds.add(Long.parseLong(task.getOwner())); } catch (NumberFormatException ignored) {}
+            }
+        }
+        return flowableIdentityService.getUserNames(userIds);
     }
 
     /**

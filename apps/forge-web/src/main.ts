@@ -16,6 +16,9 @@ import { permission, role } from './directives/permission'
 // 导入 vxe-table 插件
 import { setupVxe } from './plugins/vxe'
 
+// 导入 form-create 表单设计器插件
+import { setupFormCreate } from './plugins/formCreate'
+
 const app = createApp(App)
 
 // 注册所有图标
@@ -33,5 +36,8 @@ app.use(ElementPlus, { locale: zhCn })
 
 // 注册 vxe-table
 setupVxe(app)
+
+// 注册 form-create 表单设计器
+setupFormCreate(app)
 
 app.mount('#app')

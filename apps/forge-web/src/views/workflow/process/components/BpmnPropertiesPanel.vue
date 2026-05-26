@@ -69,8 +69,22 @@
           <el-form-item label="表单标识">
             <el-input v-model="formData.formKey" @change="handlePropertyChange" />
           </el-form-item>
-          <el-form-item label="表单字段">
-            <FormSchemaEditor v-model="formData.formFields" @update:model-value="handleFormFieldsChange" />
+          <el-form-item label="关联表单">
+            <el-select
+              v-model="formData.formId"
+              filterable
+              clearable
+              placeholder="选择关联表单"
+              style="width: 100%"
+              @change="handlePropertyChange"
+            >
+              <el-option
+                v-for="form in formList"
+                :key="form.id"
+                :label="form.name"
+                :value="form.id"
+              />
+            </el-select>
           </el-form-item>
         </template>
         <template v-if="isSequenceFlow">
@@ -88,7 +102,8 @@ import { ref, computed, watch, onMounted } from 'vue'
 import type LogicFlow from '@logicflow/core'
 import { getUserList } from '@/api/system'
 import { getRoleList } from '@/api/system'
-import FormSchemaEditor from './FormSchemaEditor.vue'
+import { formApi } from '@/api/workflow/form'
+import type { WfFormSimple } from '@/api/workflow/form'
 
 const props = defineProps<{
   lf: LogicFlow | null
@@ -97,6 +112,7 @@ const props = defineProps<{
 const selectedNode = ref<any>(null)
 const userList = ref<any[]>([])
 const roleList = ref<any[]>([])
+const formList = ref<WfFormSimple[]>([])
 
 const nodeTypeMap: Record<string, string> = {
   'bpmn:startEvent': '开始事件',
@@ -122,7 +138,7 @@ const formData = ref({
   candidateUsers: '',
   candidateGroups: '',
   formKey: '',
-  formFields: '',
+  formId: undefined as number | undefined,
   conditionExpression: '',
 })
 
@@ -149,7 +165,7 @@ const handlePropertyChange = () => {
     candidateUsers: formData.value.candidateUsers,
     candidateGroups: formData.value.candidateGroups,
     formKey: formData.value.formKey,
-    formFields: formData.value.formFields,
+    formId: formData.value.formId,
     conditionExpression: formData.value.conditionExpression,
   })
 }
@@ -161,10 +177,6 @@ const handleCandidateUsersChange = (val: string[]) => {
 
 const handleCandidateGroupsChange = (val: string[]) => {
   formData.value.candidateGroups = val.join(',')
-  handlePropertyChange()
-}
-
-const handleFormFieldsChange = () => {
   handlePropertyChange()
 }
 
@@ -195,7 +207,7 @@ const loadFormData = (data: any) => {
     candidateUsers: nodeProps.candidateUsers || '',
     candidateGroups: nodeProps.candidateGroups || '',
     formKey: nodeProps.formKey || '',
-    formFields: nodeProps.formFields || '',
+    formId: nodeProps.formId || undefined,
     conditionExpression: nodeProps.conditionExpression || '',
   }
 }
@@ -214,9 +226,16 @@ const loadRoles = async () => {
   } catch { /* ignore */ }
 }
 
+const loadForms = async () => {
+  try {
+    formList.value = await formApi.listAll()
+  } catch { /* ignore */ }
+}
+
 onMounted(() => {
   loadUsers()
   loadRoles()
+  loadForms()
 })
 </script>
 

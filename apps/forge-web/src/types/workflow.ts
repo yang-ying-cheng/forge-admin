@@ -41,6 +41,8 @@ export interface ProcessDefinition {
   suspensionState: number  // 1=active, 2=suspended
   description: string
   formKey: string
+  formType: number | null
+  formId: number | null
   resourceName: string
   diagramResourceName: string
   createTime: string
@@ -63,6 +65,8 @@ export interface ProcessDeployRequest {
   categoryId?: number
   description?: string
   bpmnXml: string
+  formType?: number
+  formId?: number
 }
 
 // 流程实例

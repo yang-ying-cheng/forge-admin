@@ -229,11 +229,12 @@
         <el-form-item label="备注">
           <el-input v-model="startForm.comment" type="textarea" :rows="2" placeholder="请输入备注（可选）" />
         </el-form-item>
-        <template v-if="startForm.formSchema">
+        <template v-if="startForm.formRule.length > 0">
           <el-divider content-position="left">流程表单</el-divider>
-          <DynamicFormRender
-            :schema="startForm.formSchema"
-            v-model="startForm.variables"
+          <form-create
+            v-model="startForm.fApi"
+            :rule="startForm.formRule"
+            :option="startForm.formOption"
           />
         </template>
       </el-form>
@@ -253,15 +254,16 @@ import { useRouter } from 'vue-router'
 import { processDefinitionApi } from '@/api/workflow/process-definition'
 import { processInstanceApi } from '@/api/workflow/process-instance'
 import { categoryApi } from '@/api/workflow/category'
+import { formApi } from '@/api/workflow/form'
 import type { ProcessDefinition } from '@/types/workflow'
 import { formatDateTime } from '@/utils/dateFormat'
+import { decodeFields } from '@/utils/formCreate'
 import { useResponsive } from '@/composables/useResponsive'
 import { useTableHeight } from '@/composables/useTableHeight'
 import { useTableSeq } from '@/composables/useTableSeq'
 import MobileSearchDrawer from '@/components/MobileSearchDrawer.vue'
 import MobileSearchButton from '@/components/MobileSearchButton.vue'
 import MobileBottomActions from '@/components/MobileBottomActions.vue'
-import DynamicFormRender from './components/DynamicFormRender.vue'
 
 const router = useRouter()
 const { isMobile } = useResponsive()
@@ -448,8 +450,9 @@ const startForm = reactive({
   processName: '',
   businessKey: '',
   comment: '',
-  variables: {} as Record<string, any>,
-  formSchema: '',
+  fApi: null as any,
+  formRule: [] as any[],
+  formOption: { submitBtn: false, resetBtn: false } as any,
 })
 
 const handleStartProcess = async (row: ProcessDefinition) => {
@@ -457,17 +460,21 @@ const handleStartProcess = async (row: ProcessDefinition) => {
   startForm.processName = row.name
   startForm.businessKey = ''
   startForm.comment = ''
-  startForm.variables = {}
-  startForm.formSchema = ''
+  startForm.formRule = []
 
-  // 尝试从 BPMN XML 中提取表单字段配置
+  // 加载流程定义详情获取关联表单
   try {
-    const xml = await processDefinitionApi.getXml(row.id)
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(xml, 'text/xml')
-    const userTask = doc.querySelector('userTask[formFields]')
-    if (userTask) {
-      startForm.formSchema = userTask.getAttribute('formFields') || ''
+    const detail = await processDefinitionApi.getById(row.id)
+    if (detail.formId) {
+      const formData = await formApi.getById(detail.formId)
+      if (formData.conf && formData.fields) {
+        startForm.formRule = decodeFields(formData.fields)
+        try {
+          startForm.formOption = JSON.parse(formData.conf)
+        } catch { /* ignore */ }
+        startForm.formOption.submitBtn = false
+        startForm.formOption.resetBtn = false
+      }
     }
   } catch { /* ignore */ }
 
@@ -477,10 +484,11 @@ const handleStartProcess = async (row: ProcessDefinition) => {
 const handleConfirmStart = async () => {
   startLoading.value = true
   try {
+    const variables = startForm.fApi ? startForm.fApi.formData() : undefined
     await processInstanceApi.start({
       processDefinitionId: startForm.processDefinitionId,
       businessKey: startForm.businessKey || undefined,
-      variables: Object.keys(startForm.variables).length > 0 ? startForm.variables : undefined,
+      variables: variables && Object.keys(variables).length > 0 ? variables : undefined,
       comment: startForm.comment || undefined,
     })
     ElMessage.success('流程发起成功')
@@ -493,7 +501,7 @@ const handleConfirmStart = async () => {
 }
 
 const handleStartDialogClose = () => {
-  startForm.variables = {}
+  startForm.formRule = []
 }
 
 onMounted(() => {

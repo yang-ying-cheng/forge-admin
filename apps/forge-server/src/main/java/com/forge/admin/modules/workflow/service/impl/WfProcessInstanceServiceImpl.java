@@ -78,7 +78,7 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             throw new BusinessException(404, "流程实例不存在");
         }
 
-        return convertToResponse(historicInstance);
+        return convertToResponseSingle(historicInstance);
     }
 
     @Override
@@ -322,12 +322,37 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
     }
 
     /**
-     * 构建分页结果
+     * 构建分页结果（批量预加载关联数据，避免 N+1 查询）
      */
     private Page<ProcessInstanceResponse> buildPageResult(List<HistoricProcessInstance> instances,
                                                           long total, int pageNum, int pageSize) {
+        if (instances.isEmpty()) {
+            Page<ProcessInstanceResponse> resultPage = new Page<>();
+            resultPage.setCurrent(pageNum);
+            resultPage.setSize(pageSize);
+            resultPage.setTotal(total);
+            resultPage.setRecords(Collections.emptyList());
+            return resultPage;
+        }
+
+        // 批量加载流程定义
+        Map<String, ProcessDefinition> definitionCache = new HashMap<>();
+        instances.stream()
+                .map(HistoricProcessInstance::getProcessDefinitionId)
+                .distinct()
+                .forEach(defId -> definitionCache.computeIfAbsent(defId, repositoryService::getProcessDefinition));
+
+        // 批量加载用户名称
+        Set<Long> userIds = new HashSet<>();
+        for (HistoricProcessInstance inst : instances) {
+            if (StrUtil.isNotBlank(inst.getStartUserId())) {
+                try { userIds.add(Long.parseLong(inst.getStartUserId())); } catch (NumberFormatException ignored) {}
+            }
+        }
+        Map<Long, String> userNameCache = flowableIdentityService.getUserNames(userIds);
+
         List<ProcessInstanceResponse> records = instances.stream()
-                .map(this::convertToResponse)
+                .map(inst -> convertToResponse(inst, definitionCache, userNameCache))
                 .collect(Collectors.toList());
 
         Page<ProcessInstanceResponse> resultPage = new Page<>();
@@ -339,15 +364,16 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
     }
 
     /**
-     * 将历史流程实例转换为响应对象
+     * 将历史流程实例转换为响应对象（使用缓存数据）
      */
-    private ProcessInstanceResponse convertToResponse(HistoricProcessInstance historicInstance) {
+    private ProcessInstanceResponse convertToResponse(HistoricProcessInstance historicInstance,
+                                                       Map<String, ProcessDefinition> definitionCache,
+                                                       Map<Long, String> userNameCache) {
         ProcessInstanceResponse response = new ProcessInstanceResponse();
         response.setId(historicInstance.getId());
         response.setProcessDefinitionId(historicInstance.getProcessDefinitionId());
 
-        // 获取流程定义名称
-        ProcessDefinition definition = repositoryService.getProcessDefinition(historicInstance.getProcessDefinitionId());
+        ProcessDefinition definition = definitionCache.get(historicInstance.getProcessDefinitionId());
         if (definition != null) {
             response.setProcessDefinitionName(definition.getName());
             response.setProcessDefinitionKey(definition.getKey());
@@ -364,11 +390,10 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
         response.setDurationInMillis(historicInstance.getDurationInMillis());
 
         response.setStartUserId(historicInstance.getStartUserId());
-        // 获取发起人名称
         if (StrUtil.isNotBlank(historicInstance.getStartUserId())) {
             try {
                 Long userId = Long.parseLong(historicInstance.getStartUserId());
-                response.setStartUserName(flowableIdentityService.getUserName(userId));
+                response.setStartUserName(userNameCache.getOrDefault(userId, historicInstance.getStartUserId()));
             } catch (NumberFormatException e) {
                 response.setStartUserName(historicInstance.getStartUserId());
             }
@@ -559,6 +584,23 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             response.setCreateTime(comment.getCreateTime().format(DATE_FORMATTER));
         }
         return response;
+    }
+
+    /**
+     * 单条实例查询转换（不需要批量优化）
+     */
+    private ProcessInstanceResponse convertToResponseSingle(HistoricProcessInstance historicInstance) {
+        Map<String, ProcessDefinition> definitionCache = new HashMap<>();
+        definitionCache.put(historicInstance.getProcessDefinitionId(),
+                repositoryService.getProcessDefinition(historicInstance.getProcessDefinitionId()));
+
+        Set<Long> userIds = new HashSet<>();
+        if (StrUtil.isNotBlank(historicInstance.getStartUserId())) {
+            try { userIds.add(Long.parseLong(historicInstance.getStartUserId())); } catch (NumberFormatException ignored) {}
+        }
+        Map<Long, String> userNameCache = flowableIdentityService.getUserNames(userIds);
+
+        return convertToResponse(historicInstance, definitionCache, userNameCache);
     }
 
     /**

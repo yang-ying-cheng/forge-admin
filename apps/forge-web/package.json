@@ -14,6 +14,8 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",
+    "@form-create/designer": "^3.1.3",
+    "@form-create/element-ui": "^3.1.24",
     "@fortawesome/fontawesome-free": "^7.2.0",
     "@logicflow/core": "^2.2.3",
     "@logicflow/extension": "^2.2.3",
