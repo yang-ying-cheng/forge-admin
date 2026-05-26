@@ -380,6 +380,15 @@ const handleSubmit = async () => {
 
   submitLoading.value = true
   try {
+    // 构建 metaInfo JSON（包含 formType 和 formId）
+    const metaInfo: Record<string, any> = {}
+    if (formData.formType !== undefined) {
+      metaInfo.formType = formData.formType
+    }
+    if (formData.formId !== undefined) {
+      metaInfo.formId = formData.formId
+    }
+
     if (isEditDialog.value) {
       await modelApi.update({
         id: formData.id,
@@ -387,6 +396,7 @@ const handleSubmit = async () => {
         key: formData.key,
         category: formData.category,
         description: formData.description,
+        metaInfo: Object.keys(metaInfo).length > 0 ? JSON.stringify(metaInfo) : undefined,
       })
       ElMessage.success('更新成功')
     } else {
@@ -395,6 +405,7 @@ const handleSubmit = async () => {
         key: formData.key,
         category: formData.category,
         description: formData.description,
+        metaInfo: Object.keys(metaInfo).length > 0 ? JSON.stringify(metaInfo) : undefined,
       })
       ElMessage.success('新增成功')
     }

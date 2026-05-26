@@ -37,9 +37,6 @@
         <span class="title">流程定义</span>
         <div class="actions">
           <MobileSearchButton :badge-count="activeConditionsCount" @click="searchDrawerVisible = true" />
-          <el-button v-permission="'workflow:process:add'" type="primary" @click="handleAdd">
-            <el-icon><Plus /></el-icon>
-          </el-button>
         </div>
       </div>
     </el-card>
@@ -77,10 +74,7 @@
       <!-- vxe-toolbar 工具栏（桌面端） -->
       <vxe-toolbar v-if="!isMobile" ref="toolbarRef" custom>
         <template #buttons>
-          <el-button v-permission="'workflow:process:add'" type="primary" @click="handleAdd">
-            <el-icon><Plus /></el-icon>
-            新增流程
-          </el-button>
+          <!-- 新增流程请前往模型管理 -->
         </template>
         <template #tools>
           <vxe-button circle icon="vxe-icon-repeat" style="margin-right: 10px" @click="handleReset"></vxe-button>
@@ -137,9 +131,8 @@
         </vxe-column>
 
         <!-- 桌面端操作列 -->
-        <vxe-column v-if="!isMobile" title="操作" width="260" fixed="right">
+        <vxe-column v-if="!isMobile" title="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link size="small" @click.stop="handleDesign(row)">设计</el-button>
             <el-button
               v-if="row.suspensionState === 1"
               v-permission="'workflow:instance:start'"
@@ -184,7 +177,12 @@
       @cancel="cancelSelection"
     >
       <template #actions="{ item }">
-        <el-button size="small" type="primary" @click.stop="handleDesign(item)">设计</el-button>
+        <el-button
+          v-if="item.suspensionState === 1"
+          v-permission="'workflow:instance:start'"
+          size="small" type="success"
+          @click.stop="handleStartProcess(item)"
+        >发起</el-button>
         <el-button size="small" @click.stop="handleViewXml(item)">XML</el-button>
         <el-button
           v-if="item.suspensionState === 1"
@@ -364,17 +362,6 @@ const handleSearchFromDrawer = () => {
 // 移动端抽屉重置
 const handleResetFromDrawer = () => {
   handleReset()
-}
-
-/** 新增流程 - 跳转到设计器 */
-const handleAdd = () => {
-  router.push('/workflow/process/designer')
-}
-
-/** 设计流程 - 跳转到设计器并加载已有数据 */
-const handleDesign = (row: ProcessDefinition) => {
-  cancelSelection()
-  router.push({ path: '/workflow/process/designer', query: { id: row.id } })
 }
 
 /** 查看XML */
