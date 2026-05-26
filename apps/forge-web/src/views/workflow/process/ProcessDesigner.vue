@@ -37,7 +37,7 @@
     <!-- 设计器主体 -->
     <div class="designer-body">
       <!-- 左侧面板 -->
-      <BpmnPalette />
+      <BpmnPalette :lf="lfInstance" />
 
       <!-- 中间画布 -->
       <div class="designer-canvas">
@@ -109,6 +109,7 @@ const categoryList = ref<{ id: number; categoryName: string }[]>([])
 const deployDialogVisible = ref(false)
 const deployLoading = ref(false)
 const deployFormRef = ref<FormInstance>()
+const processDetail = ref<any>(null) // 编辑模式下缓存的流程定义详情
 const deployForm = reactive({
   name: '',
   key: '',
@@ -139,9 +140,20 @@ const handleDesignerReady = () => {
 /** 加载已有流程定义 */
 const loadExistingProcess = async (id: string) => {
   try {
-    const xml = await processDefinitionApi.getXml(id)
+    const [xml, detail] = await Promise.all([
+      processDefinitionApi.getXml(id),
+      processDefinitionApi.getById(id),
+    ])
     if (xml && designerRef.value) {
       designerRef.value.render(xml)
+    }
+    // 缓存详情并预填部署表单
+    if (detail) {
+      processDetail.value = detail
+      deployForm.name = detail.name || ''
+      deployForm.key = detail.key || ''
+      deployForm.categoryId = detail.categoryId || undefined
+      deployForm.description = detail.description || ''
     }
   } catch (e) {
     ElMessage.error('加载流程定义失败')
@@ -190,11 +202,14 @@ const handleGoBack = () => {
 
 /** 打开部署对话框 */
 const handleOpenDeployDialog = () => {
-  // 重置表单
-  deployForm.name = ''
-  deployForm.key = ''
-  deployForm.categoryId = undefined
-  deployForm.description = ''
+  if (!isEdit.value) {
+    // 新增模式：重置表单
+    deployForm.name = ''
+    deployForm.key = ''
+    deployForm.categoryId = undefined
+    deployForm.description = ''
+  }
+  // 编辑模式下表单已由 loadExistingProcess 预填，保留用户可修改
   deployDialogVisible.value = true
 }
 
@@ -211,6 +226,20 @@ const handleDeploy = async () => {
     return
   }
 
+  let bpmnXml = typeof xmlData === 'string' ? xmlData : JSON.stringify(xmlData)
+
+  // 将用户填写的 name/key 注入到 BPMN XML 的 <bpmn:process> 元素中
+  bpmnXml = bpmnXml
+    .replace(/(<bpmn:process[^>]*?)\bid="[^"]*"/, `$1 id="${deployForm.key}"`)
+    .replace(/(<bpmn:process[^>]*?)\bname="[^"]*"/, `$1 name="${deployForm.name}"`)
+  // 如果 process 没有 name 属性，则添加
+  if (!/<bpmn:process[^>]*name="/.test(bpmnXml)) {
+    bpmnXml = bpmnXml.replace(
+      /(<bpmn:process[^>]*?)\bid="[^"]*"/,
+      `$1 id="${deployForm.key}" name="${deployForm.name}"`
+    )
+  }
+
   deployLoading.value = true
   try {
     await processDefinitionApi.deploy({
@@ -218,7 +247,7 @@ const handleDeploy = async () => {
       key: deployForm.key,
       categoryId: deployForm.categoryId,
       description: deployForm.description,
-      bpmnXml: typeof xmlData === 'string' ? xmlData : JSON.stringify(xmlData)
+      bpmnXml
     })
     ElMessage.success('部署成功')
     deployDialogVisible.value = false

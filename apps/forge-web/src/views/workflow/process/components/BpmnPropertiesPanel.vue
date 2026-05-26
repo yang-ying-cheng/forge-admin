@@ -14,16 +14,63 @@
         </el-form-item>
         <template v-if="isTaskNode">
           <el-form-item label="受理人">
-            <el-input v-model="formData.assignee" placeholder="如: ${initiator}" @change="handlePropertyChange" />
+            <el-select
+              v-model="formData.assignee"
+              filterable
+              clearable
+              placeholder="选择受理人"
+              style="width: 100%"
+              @change="handlePropertyChange"
+            >
+              <el-option
+                v-for="user in userList"
+                :key="user.id"
+                :label="`${user.nickname}(${user.username})`"
+                :value="String(user.id)"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="候选用户">
-            <el-input v-model="formData.candidateUsers" placeholder="多个用逗号分隔" @change="handlePropertyChange" />
+            <el-select
+              v-model="candidateUserIds"
+              filterable
+              multiple
+              clearable
+              placeholder="选择候选用户"
+              style="width: 100%"
+              @change="handleCandidateUsersChange"
+            >
+              <el-option
+                v-for="user in userList"
+                :key="user.id"
+                :label="`${user.nickname}(${user.username})`"
+                :value="String(user.id)"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="候选组">
-            <el-input v-model="formData.candidateGroups" placeholder="角色ID,多个用逗号分隔" @change="handlePropertyChange" />
+            <el-select
+              v-model="candidateRoleIds"
+              filterable
+              multiple
+              clearable
+              placeholder="选择候选角色"
+              style="width: 100%"
+              @change="handleCandidateGroupsChange"
+            >
+              <el-option
+                v-for="role in roleList"
+                :key="role.id"
+                :label="role.roleName"
+                :value="String(role.id)"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="表单标识">
             <el-input v-model="formData.formKey" @change="handlePropertyChange" />
+          </el-form-item>
+          <el-form-item label="表单字段">
+            <FormSchemaEditor v-model="formData.formFields" @update:model-value="handleFormFieldsChange" />
           </el-form-item>
         </template>
         <template v-if="isSequenceFlow">
@@ -37,14 +84,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import type LogicFlow from '@logicflow/core'
+import { getUserList } from '@/api/system'
+import { getRoleList } from '@/api/system'
+import FormSchemaEditor from './FormSchemaEditor.vue'
 
 const props = defineProps<{
   lf: LogicFlow | null
 }>()
 
 const selectedNode = ref<any>(null)
+const userList = ref<any[]>([])
+const roleList = ref<any[]>([])
 
 const nodeTypeMap: Record<string, string> = {
   'bpmn:startEvent': '开始事件',
@@ -70,7 +122,18 @@ const formData = ref({
   candidateUsers: '',
   candidateGroups: '',
   formKey: '',
+  formFields: '',
   conditionExpression: '',
+})
+
+const candidateUserIds = computed({
+  get: () => formData.value.candidateUsers ? formData.value.candidateUsers.split(',').filter(Boolean) : [],
+  set: () => {},
+})
+
+const candidateRoleIds = computed({
+  get: () => formData.value.candidateGroups ? formData.value.candidateGroups.split(',').filter(Boolean) : [],
+  set: () => {},
 })
 
 const handleNameChange = () => {
@@ -86,8 +149,23 @@ const handlePropertyChange = () => {
     candidateUsers: formData.value.candidateUsers,
     candidateGroups: formData.value.candidateGroups,
     formKey: formData.value.formKey,
+    formFields: formData.value.formFields,
     conditionExpression: formData.value.conditionExpression,
   })
+}
+
+const handleCandidateUsersChange = (val: string[]) => {
+  formData.value.candidateUsers = val.join(',')
+  handlePropertyChange()
+}
+
+const handleCandidateGroupsChange = (val: string[]) => {
+  formData.value.candidateGroups = val.join(',')
+  handlePropertyChange()
+}
+
+const handleFormFieldsChange = () => {
+  handlePropertyChange()
 }
 
 watch(
@@ -117,14 +195,34 @@ const loadFormData = (data: any) => {
     candidateUsers: nodeProps.candidateUsers || '',
     candidateGroups: nodeProps.candidateGroups || '',
     formKey: nodeProps.formKey || '',
+    formFields: nodeProps.formFields || '',
     conditionExpression: nodeProps.conditionExpression || '',
   }
 }
+
+const loadUsers = async () => {
+  try {
+    const res = await getUserList({ pageNum: 1, pageSize: 200, status: 1 })
+    userList.value = res.list || []
+  } catch { /* ignore */ }
+}
+
+const loadRoles = async () => {
+  try {
+    const res = await getRoleList({ pageNum: 1, pageSize: 100, status: 1 })
+    roleList.value = res.list || []
+  } catch { /* ignore */ }
+}
+
+onMounted(() => {
+  loadUsers()
+  loadRoles()
+})
 </script>
 
 <style scoped>
 .bpmn-properties-panel {
-  width: 280px;
+  width: 320px;
   border-left: 1px solid var(--el-border-color-light);
   background: var(--el-bg-color);
   overflow-y: auto;

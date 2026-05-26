@@ -140,6 +140,12 @@
         <vxe-column v-if="!isMobile" title="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click.stop="handleDesign(row)">设计</el-button>
+            <el-button
+              v-if="row.suspensionState === 1"
+              v-permission="'workflow:instance:start'"
+              type="success" link size="small"
+              @click.stop="handleStartProcess(row)"
+            >发起</el-button>
             <el-button type="primary" link size="small" @click.stop="handleViewXml(row)">XML</el-button>
             <el-button
               v-if="row.suspensionState === 1"
@@ -210,6 +216,32 @@
         style="font-family: monospace"
       />
     </el-dialog>
+
+    <!-- 发起流程对话框 -->
+    <el-dialog v-model="startDialogVisible" title="发起流程" width="600px" @close="handleStartDialogClose">
+      <el-form label-width="100px">
+        <el-form-item label="流程名称">
+          <el-input :model-value="startForm.processName" disabled />
+        </el-form-item>
+        <el-form-item label="业务标识">
+          <el-input v-model="startForm.businessKey" placeholder="请输入业务标识（可选）" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="startForm.comment" type="textarea" :rows="2" placeholder="请输入备注（可选）" />
+        </el-form-item>
+        <template v-if="startForm.formSchema">
+          <el-divider content-position="left">流程表单</el-divider>
+          <DynamicFormRender
+            :schema="startForm.formSchema"
+            v-model="startForm.variables"
+          />
+        </template>
+      </el-form>
+      <template #footer>
+        <el-button @click="startDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="startLoading" @click="handleConfirmStart">确定发起</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -219,6 +251,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { VxeTableInstance, VxeToolbarInstance } from 'vxe-table'
 import { useRouter } from 'vue-router'
 import { processDefinitionApi } from '@/api/workflow/process-definition'
+import { processInstanceApi } from '@/api/workflow/process-instance'
 import { categoryApi } from '@/api/workflow/category'
 import type { ProcessDefinition } from '@/types/workflow'
 import { formatDateTime } from '@/utils/dateFormat'
@@ -228,6 +261,7 @@ import { useTableSeq } from '@/composables/useTableSeq'
 import MobileSearchDrawer from '@/components/MobileSearchDrawer.vue'
 import MobileSearchButton from '@/components/MobileSearchButton.vue'
 import MobileBottomActions from '@/components/MobileBottomActions.vue'
+import DynamicFormRender from './components/DynamicFormRender.vue'
 
 const router = useRouter()
 const { isMobile } = useResponsive()
@@ -404,6 +438,62 @@ const cancelSelection = () => {
   if (tableRef.value) {
     tableRef.value.clearCurrentRow()
   }
+}
+
+// 发起流程
+const startDialogVisible = ref(false)
+const startLoading = ref(false)
+const startForm = reactive({
+  processDefinitionId: '',
+  processName: '',
+  businessKey: '',
+  comment: '',
+  variables: {} as Record<string, any>,
+  formSchema: '',
+})
+
+const handleStartProcess = async (row: ProcessDefinition) => {
+  startForm.processDefinitionId = row.id
+  startForm.processName = row.name
+  startForm.businessKey = ''
+  startForm.comment = ''
+  startForm.variables = {}
+  startForm.formSchema = ''
+
+  // 尝试从 BPMN XML 中提取表单字段配置
+  try {
+    const xml = await processDefinitionApi.getXml(row.id)
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(xml, 'text/xml')
+    const userTask = doc.querySelector('userTask[formFields]')
+    if (userTask) {
+      startForm.formSchema = userTask.getAttribute('formFields') || ''
+    }
+  } catch { /* ignore */ }
+
+  startDialogVisible.value = true
+}
+
+const handleConfirmStart = async () => {
+  startLoading.value = true
+  try {
+    await processInstanceApi.start({
+      processDefinitionId: startForm.processDefinitionId,
+      businessKey: startForm.businessKey || undefined,
+      variables: Object.keys(startForm.variables).length > 0 ? startForm.variables : undefined,
+      comment: startForm.comment || undefined,
+    })
+    ElMessage.success('流程发起成功')
+    startDialogVisible.value = false
+  } catch {
+    ElMessage.error('流程发起失败')
+  } finally {
+    startLoading.value = false
+  }
+}
+
+const handleStartDialogClose = () => {
+  startForm.variables = {}
 }
 
 onMounted(() => {

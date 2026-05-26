@@ -3,11 +3,11 @@
     <div class="palette-section">
       <div class="section-title">事件</div>
       <div class="palette-items">
-        <div class="palette-item" draggable="true" @dragstart="handleDragStart($event, 'bpmn:startEvent')">
+        <div class="palette-item" @mousedown="handleMouseDown($event, 'bpmn:startEvent', '开始事件')">
           <div class="item-icon start-event"></div>
           <span>开始事件</span>
         </div>
-        <div class="palette-item" draggable="true" @dragstart="handleDragStart($event, 'bpmn:endEvent')">
+        <div class="palette-item" @mousedown="handleMouseDown($event, 'bpmn:endEvent', '结束事件')">
           <div class="item-icon end-event"></div>
           <span>结束事件</span>
         </div>
@@ -16,11 +16,11 @@
     <div class="palette-section">
       <div class="section-title">任务</div>
       <div class="palette-items">
-        <div class="palette-item" draggable="true" @dragstart="handleDragStart($event, 'bpmn:userTask')">
+        <div class="palette-item" @mousedown="handleMouseDown($event, 'bpmn:userTask', '用户任务')">
           <div class="item-icon user-task"></div>
           <span>用户任务</span>
         </div>
-        <div class="palette-item" draggable="true" @dragstart="handleDragStart($event, 'bpmn:serviceTask')">
+        <div class="palette-item" @mousedown="handleMouseDown($event, 'bpmn:serviceTask', '系统任务')">
           <div class="item-icon service-task"></div>
           <span>系统任务</span>
         </div>
@@ -29,11 +29,11 @@
     <div class="palette-section">
       <div class="section-title">网关</div>
       <div class="palette-items">
-        <div class="palette-item" draggable="true" @dragstart="handleDragStart($event, 'bpmn:exclusiveGateway')">
+        <div class="palette-item" @mousedown="handleMouseDown($event, 'bpmn:exclusiveGateway', '排他网关')">
           <div class="item-icon exclusive-gateway"></div>
           <span>排他网关</span>
         </div>
-        <div class="palette-item" draggable="true" @dragstart="handleDragStart($event, 'bpmn:parallelGateway')">
+        <div class="palette-item" @mousedown="handleMouseDown($event, 'bpmn:parallelGateway', '并行网关')">
           <div class="item-icon parallel-gateway"></div>
           <span>并行网关</span>
         </div>
@@ -42,7 +42,7 @@
     <div class="palette-section">
       <div class="section-title">子流程</div>
       <div class="palette-items">
-        <div class="palette-item" draggable="true" @dragstart="handleDragStart($event, 'bpmn:subProcess')">
+        <div class="palette-item" @mousedown="handleMouseDown($event, 'bpmn:subProcess', '子流程')">
           <div class="item-icon sub-process"></div>
           <span>子流程</span>
         </div>
@@ -52,8 +52,16 @@
 </template>
 
 <script setup lang="ts">
-const handleDragStart = (event: DragEvent, type: string) => {
-  event.dataTransfer?.setData('text/plain', type)
+const props = defineProps<{
+  lf: any
+}>()
+
+const handleMouseDown = (_event: MouseEvent, type: string, text: string) => {
+  if (!props.lf) return
+  props.lf.dnd.startDrag({
+    type,
+    text,
+  })
 }
 </script>
 
@@ -88,6 +96,7 @@ const handleDragStart = (event: DragEvent, type: string) => {
   cursor: grab;
   font-size: 12px;
   transition: background 0.2s;
+  user-select: none;
 }
 .palette-item:hover {
   background: var(--el-fill-color-light);

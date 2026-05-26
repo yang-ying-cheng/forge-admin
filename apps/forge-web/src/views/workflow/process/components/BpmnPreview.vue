@@ -7,7 +7,8 @@ import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import LogicFlow from '@logicflow/core'
 import '@logicflow/core/dist/index.css'
 import '@logicflow/extension/lib/style/index.css'
-import { BPMNElements, BPMNAdapter } from '@logicflow/extension'
+import { BPMNElements, BpmnXmlAdapter } from '@logicflow/extension'
+import { parseStandardBpmnXml, isStandardBpmnXml } from '@/composables/useBpmnDesigner'
 
 const props = defineProps<{
   xml: string
@@ -22,7 +23,7 @@ const renderDiagram = () => {
   if (!lfInstance) {
     lfInstance = new LogicFlow({
       container: containerRef.value,
-      plugins: [BPMNElements, BPMNAdapter],
+      plugins: [BPMNElements, BpmnXmlAdapter],
       isSilentMode: true,
       stopZoomGraph: true,
       stopScrollGraph: true,
@@ -30,7 +31,12 @@ const renderDiagram = () => {
     })
   }
 
-  (lfInstance as any).render(props.xml)
+  if (isStandardBpmnXml(props.xml)) {
+    const graphData = parseStandardBpmnXml(props.xml)
+    ;(lfInstance as any).renderRawData(graphData)
+  } else {
+    ;(lfInstance as any).render(props.xml)
+  }
 }
 
 watch(() => props.xml, () => renderDiagram())

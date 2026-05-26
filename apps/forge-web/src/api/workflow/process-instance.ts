@@ -10,9 +10,9 @@ export const processInstanceApi = {
   getById: (id: string) =>
     request.get<ProcessInstance>(`/workflow/instance/${id}`).then(res => res.data),
   start: (data: ProcessStartRequest) =>
-    request.post('/workflow/instance/start', data),
+    request.post('/workflow/instance/start', data).then(res => res.data),
   cancel: (id: string) =>
-    request.delete(`/workflow/instance/${id}`),
+    request.delete(`/workflow/instance/${id}`).then(res => res.data),
   getDiagram: (id: string) =>
     request.get(`/workflow/instance/${id}/diagram`, { responseType: 'blob' }),
   getComments: (id: string) =>
