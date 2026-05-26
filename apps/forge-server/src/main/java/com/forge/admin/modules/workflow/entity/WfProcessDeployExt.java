@@ -35,6 +35,7 @@ public class WfProcessDeployExt {
     /**
      * 流程名称
      */
+    @TableField(insertStrategy = FieldStrategy.ALWAYS)
     private String processName;
 
     /**

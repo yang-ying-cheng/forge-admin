@@ -189,6 +189,8 @@ public class WfModelServiceImpl implements WfModelService {
                     .name(deploymentName)
                     .addString(model.getName() + ".bpmn20.xml", bpmnXml)
                     .category(model.getCategory())
+                    .key(model.getKey())
+                    .name(model.getName())
                     .deploy();
 
             // 获取新部署的流程定义
@@ -225,7 +227,7 @@ public class WfModelServiceImpl implements WfModelService {
             ext.setDeploymentId(deployment.getId());
             ext.setProcessDefinitionId(newDefinition.getId());
             ext.setProcessKey(newDefinition.getKey());
-            ext.setProcessName(newDefinition.getName());
+            ext.setProcessName(model.getName());  // 使用模型名称
             ext.setFormType(formType);
             ext.setFormId(formId);
             ext.setBpmnXml(bpmnXml);
