@@ -162,6 +162,19 @@ const handleSave = async () => {
 
     let bpmnXml = typeof xmlData === 'string' ? xmlData : JSON.stringify(xmlData)
 
+    // 确保 BPMN XML 中 process 的 id 和 name 与模型一致
+    // 支持 LogicFlow 格式 <bpmn:process> 和标准格式 <process>
+    if (modelData.value?.key && modelData.value?.name) {
+      bpmnXml = bpmnXml.replace(
+        /<bpmn:process\s+id="[^"]*"[^>]*>/,
+        `<bpmn:process id="${modelData.value.key}" name="${modelData.value.name}">`
+      )
+      bpmnXml = bpmnXml.replace(
+        /<process\s+id="[^"]*"[^>]*>/,
+        `<process id="${modelData.value.key}" name="${modelData.value.name}">`
+      )
+    }
+
     await modelApi.update({
       id,
       name: modelData.value?.name || '',

@@ -69,14 +69,11 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
                 query.suspended();
             }
         }
-        query.orderByDeploymentId().desc();
 
-        // 分页查询
-        long total = query.count();
-        int offset = (request.getPageNum() - 1) * request.getPageSize();
-        List<ProcessDefinition> definitions = query.listPage(offset, request.getPageSize());
+        // 获取所有流程定义（不使用 Flowable 的分页，因为需要按扩展信息排序）
+        List<ProcessDefinition> allDefinitions = query.list();
 
-        if (definitions.isEmpty()) {
+        if (allDefinitions.isEmpty()) {
             Page<ProcessDefinitionResponse> emptyPage = new Page<>();
             emptyPage.setCurrent(request.getPageNum());
             emptyPage.setSize(request.getPageSize());
@@ -86,22 +83,43 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
         }
 
         // 批量获取部署扩展信息
-        List<String> deploymentIds = definitions.stream()
+        List<String> deploymentIds = allDefinitions.stream()
                 .map(ProcessDefinition::getDeploymentId)
                 .distinct()
                 .toList();
         Map<String, WfProcessDeployExt> extMap = getDeployExtMap(deploymentIds);
 
         // 如果有分类过滤条件，先筛选
-        List<ProcessDefinition> filteredDefinitions = definitions;
+        List<ProcessDefinition> filteredDefinitions = allDefinitions;
         if (request.getCategoryId() != null) {
-            filteredDefinitions = definitions.stream()
+            filteredDefinitions = allDefinitions.stream()
                     .filter(def -> {
                         WfProcessDeployExt ext = extMap.get(def.getDeploymentId());
                         return ext != null && request.getCategoryId().equals(ext.getCategoryId());
                     })
                     .toList();
         }
+
+        // 按创建时间降序排序
+        filteredDefinitions = filteredDefinitions.stream()
+                .sorted((a, b) -> {
+                    WfProcessDeployExt extA = extMap.get(a.getDeploymentId());
+                    WfProcessDeployExt extB = extMap.get(b.getDeploymentId());
+                    if (extA == null && extB == null) return 0;
+                    if (extA == null) return 1;
+                    if (extB == null) return -1;
+                    if (extA.getCreateTime() == null && extB.getCreateTime() == null) return 0;
+                    if (extA.getCreateTime() == null) return 1;
+                    if (extB.getCreateTime() == null) return -1;
+                    return extB.getCreateTime().compareTo(extA.getCreateTime());
+                })
+                .toList();
+
+        // 手动分页
+        long total = filteredDefinitions.size();
+        int offset = (request.getPageNum() - 1) * request.getPageSize();
+        int endIndex = Math.min(offset + request.getPageSize(), filteredDefinitions.size());
+        List<ProcessDefinition> pagedDefinitions = filteredDefinitions.subList(offset, endIndex);
 
         // 获取分类名称映射
         List<Long> categoryIds = extMap.values().stream()
@@ -112,7 +130,7 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
         Map<Long, String> categoryNameMap = getCategoryNameMap(categoryIds);
 
         // 转换为响应对象
-        List<ProcessDefinitionResponse> records = filteredDefinitions.stream()
+        List<ProcessDefinitionResponse> records = pagedDefinitions.stream()
                 .map(def -> convertToResponse(def, extMap.get(def.getDeploymentId()), categoryNameMap))
                 .toList();
 
@@ -120,7 +138,7 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
         Page<ProcessDefinitionResponse> resultPage = new Page<>();
         resultPage.setCurrent(request.getPageNum());
         resultPage.setSize(request.getPageSize());
-        resultPage.setTotal(request.getCategoryId() != null ? filteredDefinitions.size() : total);
+        resultPage.setTotal(total);
         resultPage.setRecords(records);
 
         return resultPage;

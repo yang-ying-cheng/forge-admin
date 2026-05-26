@@ -1,6 +1,7 @@
 package com.forge.admin.modules.workflow.service.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,8 +11,10 @@ import com.forge.admin.common.utils.SecurityUtils;
 import com.forge.admin.modules.workflow.dto.model.ModelQueryRequest;
 import com.forge.admin.modules.workflow.dto.model.ModelRequest;
 import com.forge.admin.modules.workflow.dto.model.ModelResponse;
+import com.forge.admin.modules.workflow.entity.WfCategory;
 import com.forge.admin.modules.workflow.entity.WfProcessDeployExt;
 import com.forge.admin.modules.workflow.identity.FlowableIdentityService;
+import com.forge.admin.modules.workflow.mapper.WfCategoryMapper;
 import com.forge.admin.modules.workflow.mapper.WfProcessDeployExtMapper;
 import com.forge.admin.modules.workflow.service.WfModelService;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +43,7 @@ public class WfModelServiceImpl implements WfModelService {
 
     private final RepositoryService repositoryService;
     private final WfProcessDeployExtMapper wfProcessDeployExtMapper;
+    private final WfCategoryMapper wfCategoryMapper;
     private final FlowableIdentityService flowableIdentityService;
     private final ObjectMapper objectMapper;
 
@@ -177,6 +181,22 @@ public class WfModelServiceImpl implements WfModelService {
             throw new BusinessException(400, "模型内容为空，请先设计流程");
         }
 
+        // 确保 BPMN XML 中 process 的 id 和 name 与模型一致
+        String processKey = escapeXml(model.getKey());
+        String processName = escapeXml(model.getName());
+
+        // 替换 <bpmn:process ... id="xxx" ...> 中的 id 和添加 name
+        // 先替换 id 属性（属性顺序可能任意）
+        bpmnXml = bpmnXml.replaceFirst(
+                "<bpmn:process([^>]*)\\s+id=\"[^\"]*\"",
+                "<bpmn:process$1 id=\"" + processKey + "\" name=\"" + processName + "\""
+        );
+        // 如果上面没匹配到，尝试 id 在最前面的情况
+        bpmnXml = bpmnXml.replaceFirst(
+                "<bpmn:process\\s+id=\"[^\"]*\"",
+                "<bpmn:process id=\"" + processKey + "\" name=\"" + processName + "\""
+        );
+
         // 设置 Flowable 认证用户
         Long currentUserId = SecurityUtils.getCurrentUserId();
         String currentUsername = SecurityUtils.getCurrentUsername();
@@ -222,12 +242,30 @@ public class WfModelServiceImpl implements WfModelService {
                 }
             }
 
+            // 从模型分类编码查询分类ID
+            Long categoryId = null;
+            if (StrUtil.isNotBlank(model.getCategory())) {
+                try {
+                    WfCategory category = wfCategoryMapper.selectOne(
+                            new LambdaQueryWrapper<WfCategory>()
+                                    .eq(WfCategory::getCategoryCode, model.getCategory())
+                                    .last("LIMIT 1")
+                    );
+                    if (category != null) {
+                        categoryId = category.getId();
+                    }
+                } catch (Exception e) {
+                    log.warn("查询分类失败：category={}", model.getCategory(), e);
+                }
+            }
+
             // 保存扩展信息
             WfProcessDeployExt ext = new WfProcessDeployExt();
             ext.setDeploymentId(deployment.getId());
             ext.setProcessDefinitionId(newDefinition.getId());
             ext.setProcessKey(newDefinition.getKey());
             ext.setProcessName(model.getName());  // 使用模型名称
+            ext.setCategoryId(categoryId);  // 设置分类ID
             ext.setFormType(formType);
             ext.setFormId(formId);
             ext.setBpmnXml(bpmnXml);
