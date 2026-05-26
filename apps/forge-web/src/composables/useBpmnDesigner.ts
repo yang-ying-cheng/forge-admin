@@ -198,14 +198,28 @@ export function useBpmnDesigner(containerRef: Ref<HTMLElement | null>) {
   const getXmlData = () => {
     const xml = lf.value?.getGraphData() as unknown as string
     if (!xml || typeof xml !== 'string') return xml
+
+    let result = xml
+    // 添加 Flowable 命名空间声明（如果 XML 中使用了 flowable: 前缀）
+    if (result.includes('flowable:') && !result.includes('xmlns:flowable')) {
+      result = result.replace(
+        /targetNamespace="[^"]*"/,
+        'targetNamespace="http://logic-flow.org"\n         xmlns:flowable="http://flowable.org/bpmn"'
+      )
+    }
     // 清理 BPMN 流程元素上的 width/height 属性（Flowable 校验不允许），
     // 但保留 dc:Bounds 上的 width/height（图形坐标需要）
-    return xml.split('\n').map(line => {
-      if (/<bpmn:\w+[^/]*\/>/.test(line)) {
-        return line.replace(/\s+width="[^"]*"/g, '').replace(/\s+height="[^"]*"/g, '')
+    // 同时清理 isDefaultFlow 等非标准 BPMN 属性
+    result = result.split('\n').map(line => {
+      if (/<bpmn:\w+/.test(line)) {
+        return line
+          .replace(/\s+width="[^"]*"/g, '')
+          .replace(/\s+height="[^"]*"/g, '')
+          .replace(/\s+isDefaultFlow="[^"]*"/g, '')
       }
       return line
     }).join('\n')
+    return result
   }
 
   const clear = () => {
