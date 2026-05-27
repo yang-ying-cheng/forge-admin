@@ -124,12 +124,18 @@ public class BpmTaskCandidateListener implements TaskListener {
             return;
         }
 
-        // 设置候选用户
-        for (Long userId : userIds) {
-            delegateTask.addCandidateUser(String.valueOf(userId));
+        // 单候选人直接分配，多候选人设为候选用户
+        if (userIds.size() == 1) {
+            Long userId = userIds.iterator().next();
+            delegateTask.setAssignee(String.valueOf(userId));
+            log.info("任务 {} 单候选人直接分配: strategy={}, assignee={}",
+                    delegateTask.getId(), strategyCode, userId);
+        } else {
+            for (Long userId : userIds) {
+                delegateTask.addCandidateUser(String.valueOf(userId));
+            }
+            log.info("任务 {} 多候选人分配: strategy={}, candidates={}",
+                    delegateTask.getId(), strategyCode, userIds);
         }
-
-        log.info("任务 {} 自动分配候选人: strategy={}, param={}, users={}",
-                delegateTask.getId(), strategyCode, param, userIds);
     }
 }

@@ -60,8 +60,12 @@ public class WfTaskServiceImpl implements WfTaskService {
             throw new BusinessException(401, "未获取到当前用户信息");
         }
 
+        String userId = String.valueOf(currentUserId);
         var query = taskService.createTaskQuery()
-                .taskAssignee(String.valueOf(currentUserId))
+                .or()
+                .taskAssignee(userId)
+                .taskCandidateUser(userId)
+                .endOr()
                 .orderByTaskCreateTime().desc();
 
         buildTaskQueryConditions(query, request);
