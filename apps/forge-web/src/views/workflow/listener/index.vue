@@ -188,7 +188,7 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listenerApi.page(queryParams)
-    tableData.value = res.records || []
+    tableData.value = res.list || []
     total.value = res.total || 0
   } catch (e) {
     // error handled
