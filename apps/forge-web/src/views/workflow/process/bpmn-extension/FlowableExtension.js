@@ -131,6 +131,15 @@ function createFlowableGroup(element, injector) {
     isEdited: isTextFieldEntryEdited,
   })
 
+  // 审批配置
+  entries.push(
+    { id: 'approveType', component: ApproveTypeSelect, isEdited: isSelectEntryEdited },
+    { id: 'approveMethod', component: ApproveMethodSelect, isEdited: isSelectEntryEdited },
+    { id: 'rejectHandlerType', component: RejectHandlerSelect, isEdited: isSelectEntryEdited },
+    { id: 'assignEmptyHandler', component: AssignEmptyHandlerSelect, isEdited: isSelectEntryEdited },
+    { id: 'assignStartUserHandler', component: AssignStartUserHandlerSelect, isEdited: isSelectEntryEdited },
+  )
+
   return {
     id: 'flowable',
     label: translate('Flowable 属性'),
@@ -303,6 +312,152 @@ function FormKeyTextField(props) {
     getValue,
     setValue,
     debounce: (fn) => fn,
+  })
+}
+
+// ========== 审批类型 ==========
+
+const APPROVE_TYPE_OPTIONS = [
+  { value: '', label: '<默认>' },
+  { value: '1', label: '人工审批' },
+  { value: '2', label: '自动通过' },
+  { value: '3', label: '自动拒绝' },
+]
+
+function ApproveTypeSelect(props) {
+  const { element } = props
+  return SelectEntry({
+    id: 'approveType',
+    label: '审批类型',
+    getValue: () => {
+      const v = element.businessObject.get('flowable:approveType')
+      return v !== undefined && v !== null ? v.toString() : ''
+    },
+    setValue: (value) => {
+      const modeler = window.bpmnModeler
+      if (!modeler) return
+      modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+        'flowable:approveType': value ? parseInt(value) : undefined,
+      })
+    },
+    getOptions: () => APPROVE_TYPE_OPTIONS,
+  })
+}
+
+// ========== 多人审批方式 ==========
+
+const APPROVE_METHOD_OPTIONS = [
+  { value: '', label: '<默认>' },
+  { value: '1', label: '随机挑选一人' },
+  { value: '2', label: '会签(按通过比例)' },
+  { value: '3', label: '或签(一人通过/拒绝)' },
+  { value: '4', label: '依次审批' },
+]
+
+function ApproveMethodSelect(props) {
+  const { element } = props
+  return SelectEntry({
+    id: 'approveMethod',
+    label: '审批方式',
+    getValue: () => {
+      const v = element.businessObject.get('flowable:approveMethod')
+      return v !== undefined && v !== null ? v.toString() : ''
+    },
+    setValue: (value) => {
+      const modeler = window.bpmnModeler
+      if (!modeler) return
+      modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+        'flowable:approveMethod': value ? parseInt(value) : undefined,
+      })
+    },
+    getOptions: () => APPROVE_METHOD_OPTIONS,
+  })
+}
+
+// ========== 拒绝处理策略 ==========
+
+const REJECT_HANDLER_OPTIONS = [
+  { value: '', label: '<默认>' },
+  { value: '1', label: '终止流程' },
+  { value: '2', label: '驳回到指定节点' },
+]
+
+function RejectHandlerSelect(props) {
+  const { element } = props
+  return SelectEntry({
+    id: 'rejectHandlerType',
+    label: '拒绝处理',
+    getValue: () => {
+      const v = element.businessObject.get('flowable:rejectHandlerType')
+      return v !== undefined && v !== null ? v.toString() : ''
+    },
+    setValue: (value) => {
+      const modeler = window.bpmnModeler
+      if (!modeler) return
+      modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+        'flowable:rejectHandlerType': value ? parseInt(value) : undefined,
+      })
+    },
+    getOptions: () => REJECT_HANDLER_OPTIONS,
+  })
+}
+
+// ========== 审批人为空处理 ==========
+
+const ASSIGN_EMPTY_HANDLER_OPTIONS = [
+  { value: '', label: '<默认>' },
+  { value: '1', label: '自动通过' },
+  { value: '2', label: '自动拒绝' },
+  { value: '3', label: '指定人员审批' },
+  { value: '4', label: '转管理员' },
+]
+
+function AssignEmptyHandlerSelect(props) {
+  const { element } = props
+  return SelectEntry({
+    id: 'assignEmptyHandler',
+    label: '空审批人',
+    getValue: () => {
+      const v = element.businessObject.get('flowable:assignEmptyHandler')
+      return v !== undefined && v !== null ? v.toString() : ''
+    },
+    setValue: (value) => {
+      const modeler = window.bpmnModeler
+      if (!modeler) return
+      modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+        'flowable:assignEmptyHandler': value ? parseInt(value) : undefined,
+      })
+    },
+    getOptions: () => ASSIGN_EMPTY_HANDLER_OPTIONS,
+  })
+}
+
+// ========== 与发起人相同处理 ==========
+
+const ASSIGN_START_USER_HANDLER_OPTIONS = [
+  { value: '', label: '<默认>' },
+  { value: '1', label: '由发起人审批' },
+  { value: '2', label: '自动跳过' },
+  { value: '3', label: '转部门负责人' },
+]
+
+function AssignStartUserHandlerSelect(props) {
+  const { element } = props
+  return SelectEntry({
+    id: 'assignStartUserHandler',
+    label: '与发起人相同',
+    getValue: () => {
+      const v = element.businessObject.get('flowable:assignStartUserHandler')
+      return v !== undefined && v !== null ? v.toString() : ''
+    },
+    setValue: (value) => {
+      const modeler = window.bpmnModeler
+      if (!modeler) return
+      modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+        'flowable:assignStartUserHandler': value ? parseInt(value) : undefined,
+      })
+    },
+    getOptions: () => ASSIGN_START_USER_HANDLER_OPTIONS,
   })
 }
 

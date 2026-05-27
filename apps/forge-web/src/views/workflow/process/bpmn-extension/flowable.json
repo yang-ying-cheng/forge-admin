@@ -46,6 +46,59 @@
       ]
     },
     {
+      "name": "UserTaskApproveConfig",
+      "extends": [
+        "bpmn:UserTask"
+      ],
+      "properties": [
+        {
+          "name": "approveType",
+          "isAttr": true,
+          "type": "Integer"
+        },
+        {
+          "name": "approveMethod",
+          "isAttr": true,
+          "type": "Integer"
+        },
+        {
+          "name": "rejectHandlerType",
+          "isAttr": true,
+          "type": "Integer"
+        },
+        {
+          "name": "rejectReturnTaskId",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "assignEmptyHandler",
+          "isAttr": true,
+          "type": "Integer"
+        },
+        {
+          "name": "assignEmptyUserId",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "assignStartUserHandler",
+          "isAttr": true,
+          "type": "Integer"
+        },
+        {
+          "name": "autoApproveType",
+          "isAttr": true,
+          "type": "Integer"
+        },
+        {
+          "name": "fieldPermissions",
+          "isAttr": true,
+          "type": "String"
+        }
+      ]
+    },
+    {
       "name": "Assignable",
       "extends": [
         "bpmn:UserTask"
