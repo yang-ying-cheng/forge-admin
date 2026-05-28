@@ -72,29 +72,21 @@
         <!-- 审批记录 -->
         <el-card shadow="never" class="timeline-card">
           <template #header>审批记录</template>
-          <el-table v-if="approvalTableData.length > 0" :data="approvalTableData" size="small">
+          <el-table v-if="comments.length" :data="comments" size="small">
             <el-table-column type="index" label="序号" width="60" align="center" />
-            <el-table-column prop="nodeName" label="节点名称" min-width="120" show-overflow-tooltip />
-            <el-table-column label="处理人" min-width="120">
+            <el-table-column prop="createTime" label="时间" width="170">
+              <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
+            </el-table-column>
+            <el-table-column prop="userName" label="审批人" width="100" />
+            <el-table-column prop="actionType" label="动作" width="80" align="center">
               <template #default="{ row }">
-                <template v-if="row.assigneeName">{{ row.assigneeName }}</template>
-                <template v-else-if="row.candidateUsers && row.candidateUsers.length > 0">
-                  <el-tag type="warning" size="small">待认领</el-tag>
-                  <span style="margin-left: 4px; color: #909399; font-size: 12px">{{ row.candidateUsers.join(', ') }}</span>
-                </template>
-                <span v-else style="color: #909399">-</span>
+                <el-tag size="small" :type="actionTagType(row.actionType)">
+                  {{ actionLabel(row.actionType) }}
+                </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="80" align="center">
-              <template #default="{ row }">
-                <el-tag v-if="row.status === 1" type="warning" size="small">进行中</el-tag>
-                <el-tag v-else type="success" size="small">已完成</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="时间" width="170">
-              <template #default="{ row }">{{ formatDateTime(row.time) }}</template>
-            </el-table-column>
-            <el-table-column prop="comment" label="审批意见" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="taskName" label="任务名称" min-width="120" />
+            <el-table-column prop="commentText" label="审批意见" min-width="200" show-overflow-tooltip />
           </el-table>
           <el-empty v-else description="暂无审批记录" :image-size="60" />
         </el-card>
@@ -118,7 +110,7 @@ import { ElMessage } from 'element-plus'
 import { processInstanceApi } from '@/api/workflow/process-instance'
 import { processDefinitionApi } from '@/api/workflow/process-definition'
 import { formApi } from '@/api/workflow/form'
-import type { ProcessInstance, ApprovalNode } from '@/types/workflow'
+import type { ProcessInstance, ApprovalNode, ApprovalComment } from '@/types/workflow'
 import { formatDateTime } from '@/utils/dateFormat'
 import { decodeFieldsDisabled } from '@/utils/formCreate'
 import BpmnPreview from '@/views/workflow/process/components/BpmnPreview.vue'
@@ -131,6 +123,7 @@ const router = useRouter()
 const loading = ref(false)
 const instance = ref<ProcessInstance | null>(null)
 const approvalNodes = ref<ApprovalNode[]>([])
+const comments = ref<ApprovalComment[]>([])
 const bpmnXml = ref('')
 const diagramDialogVisible = ref(false)
 const diagramContainerRef = ref<HTMLElement | null>(null)
@@ -138,47 +131,40 @@ const diagramKey = ref(0)
 
 const instanceId = route.query.id as string
 
+// 审批动作标签映射
+const actionLabel = (actionType: string): string => {
+  const map: Record<string, string> = {
+    approve: '通过',
+    reject: '驳回',
+    delegate: '委派',
+    transfer: '转办',
+    return: '退回',
+    claim: '认领',
+    submit: '提交',
+    cancel: '取消'
+  }
+  return map[actionType] || actionType
+}
+
+const actionTagType = (actionType: string): 'success' | 'danger' | 'warning' | 'info' | 'primary' => {
+  const map: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'primary'> = {
+    approve: 'success',
+    reject: 'danger',
+    delegate: 'warning',
+    transfer: 'warning',
+    return: 'info',
+    claim: 'primary',
+    submit: 'primary',
+    cancel: 'danger'
+  }
+  return map[actionType] || 'info'
+}
+
 // 当前活跃节点ID列表（用于流程图高亮）
 const activeActivityIds = computed(() => {
   return approvalNodes.value
     .filter(n => n.status === 1)
     .map(n => n.activityId)
-})
-
-// 将审批节点扁平化为表格数据
-const approvalTableData = computed(() => {
-  const rows: Array<{
-    nodeName: string
-    assigneeName: string
-    candidateUsers?: string[]
-    status: number
-    time: string | null
-    comment: string
-  }> = []
-  for (const node of approvalNodes.value) {
-    if (node.activityType !== 'userTask') continue
-    if (node.tasks && node.tasks.length > 0) {
-      for (const task of node.tasks) {
-        rows.push({
-          nodeName: node.activityName || node.activityId,
-          assigneeName: task.userName,
-          status: task.status,
-          time: task.status === 2 ? task.endTime : task.createTime,
-          comment: task.comment || ''
-        })
-      }
-    } else {
-      rows.push({
-        nodeName: node.activityName || node.activityId,
-        assigneeName: '',
-        candidateUsers: node.candidateUsers,
-        status: node.status,
-        time: node.startTime,
-        comment: ''
-      })
-    }
-  }
-  return rows
 })
 
 const handleDiagramOpened = () => {
@@ -197,9 +183,10 @@ const getInstanceDetail = async () => {
   if (!instanceId) return
   loading.value = true
   try {
-    const [instanceData, detailData] = await Promise.allSettled([
+    const [instanceData, detailData, commentsData] = await Promise.allSettled([
       processInstanceApi.getById(instanceId),
-      processInstanceApi.getApprovalDetail(instanceId)
+      processInstanceApi.getApprovalDetail(instanceId),
+      processInstanceApi.getComments(instanceId)
     ])
 
     if (instanceData.status === 'fulfilled') {
@@ -253,6 +240,10 @@ const getInstanceDetail = async () => {
       if (detailData.value.bpmnXml && !bpmnXml.value) {
         bpmnXml.value = detailData.value.bpmnXml
       }
+    }
+
+    if (commentsData.status === 'fulfilled') {
+      comments.value = commentsData.value || []
     }
   } catch (error) {
     console.error('获取实例详情失败:', error)
