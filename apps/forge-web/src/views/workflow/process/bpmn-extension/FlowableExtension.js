@@ -596,7 +596,10 @@ function ConditionTypeSelect(props) {
 
     if (!value) {
       modeling.updateProperties(element, { conditionExpression: undefined })
-    } else if (value !== 'custom') {
+    } else if (value === 'custom') {
+      const conditionExpression = moddle.create('bpmn:FormalExpression', { body: '' })
+      modeling.updateProperties(element, { conditionExpression })
+    } else {
       const conditionExpression = moddle.create('bpmn:FormalExpression', { body: value })
       modeling.updateProperties(element, { conditionExpression })
     }
@@ -618,7 +621,7 @@ function CustomConditionField(props) {
     const bo = element.businessObject
     const condition = bo.conditionExpression
     if (!condition) return ''
-    const body = condition.body || ''
+    const body = condition.body !== undefined ? condition.body : ''
     if (body === '${approved == true}' || body === '${approved == false}') return ''
     return body
   }
@@ -648,7 +651,7 @@ function CustomConditionField(props) {
   return TextFieldEntry({
     id: 'customCondition',
     label: '自定义表达式',
-    description: isPreset() ? '选择了预设条件时不可编辑' : 'Flowable 条件表达式，如 ${amount > 1000}',
+    description: isPreset() ? '选择了预设条件，如需自定义请先切换条件类型' : 'Flowable 条件表达式，如 ${amount > 1000}',
     getValue,
     setValue,
     debounce: (fn) => fn,
