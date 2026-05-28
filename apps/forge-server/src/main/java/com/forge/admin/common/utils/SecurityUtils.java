@@ -79,6 +79,19 @@ public class SecurityUtils {
         }
         return null;
     }
+    public static String getCurrentNickame() {
+        // 优先从 UserContext 获取
+        if (UserContext.get() != null) {
+            return UserContext.get().getNickname();
+        }
+
+        // 从认证信息获取
+        Authentication authentication = getAuthentication();
+        if (authentication != null) {
+            return authentication.getName();
+        }
+        return null;
+    }
 
     /**
      * 判断是否已登录

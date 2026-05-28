@@ -10,6 +10,7 @@ import com.forge.admin.modules.workflow.identity.FlowableIdentityService;
 import com.forge.admin.modules.workflow.mapper.WfProcessInstanceCopyMapper;
 import com.forge.admin.modules.workflow.service.WfProcessInstanceCopyService;
 import lombok.RequiredArgsConstructor;
+import org.flowable.engine.RepositoryService;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -21,6 +22,7 @@ public class WfProcessInstanceCopyServiceImpl implements WfProcessInstanceCopySe
 
     private final WfProcessInstanceCopyMapper copyMapper;
     private final FlowableIdentityService flowableIdentityService;
+    private final RepositoryService repositoryService;
 
     @Override
     public Page<CopyResponse> pageCopy(CopyQueryRequest request) {
@@ -33,6 +35,22 @@ public class WfProcessInstanceCopyServiceImpl implements WfProcessInstanceCopySe
                 .orderByDesc(WfProcessInstanceCopy::getCreateTime);
 
         Page<WfProcessInstanceCopy> resultPage = copyMapper.selectPage(page, wrapper);
+
+        // 补充流程名称为空的记录
+        Map<String, String> processDefinitionNameCache = new HashMap<>();
+        resultPage.getRecords().stream()
+                .filter(c -> c.getProcessInstanceName() == null && c.getProcessDefinitionId() != null)
+                .map(WfProcessInstanceCopy::getProcessDefinitionId)
+                .distinct()
+                .forEach(pdId -> {
+                    try {
+                        org.flowable.engine.repository.ProcessDefinition pd =
+                                repositoryService.createProcessDefinitionQuery().processDefinitionId(pdId).singleResult();
+                        if (pd != null && pd.getName() != null) {
+                            processDefinitionNameCache.put(pdId, pd.getName());
+                        }
+                    } catch (Exception ignored) {}
+                });
 
         // 批量获取用户名
         Set<Long> userIds = new HashSet<>();
@@ -48,7 +66,11 @@ public class WfProcessInstanceCopyServiceImpl implements WfProcessInstanceCopySe
             resp.setId(copy.getId());
             resp.setStartUserId(copy.getStartUserId());
             resp.setStartUserName(userNames.getOrDefault(copy.getStartUserId(), ""));
-            resp.setProcessInstanceName(copy.getProcessInstanceName());
+            String name = copy.getProcessInstanceName();
+            if (name == null && copy.getProcessDefinitionId() != null) {
+                name = processDefinitionNameCache.get(copy.getProcessDefinitionId());
+            }
+            resp.setProcessInstanceName(name);
             resp.setProcessInstanceId(copy.getProcessInstanceId());
             resp.setProcessNo(copy.getProcessNo());
             resp.setCategory(copy.getCategory());

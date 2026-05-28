@@ -870,7 +870,17 @@ public class WfTaskServiceImpl implements WfTaskService {
         for (Long copyUserId : request.getCopyUserIds()) {
             WfProcessInstanceCopy copy = new WfProcessInstanceCopy();
             copy.setStartUserId(currentUserId);
-            copy.setProcessInstanceName(processInstance.getName());
+            String processInstanceName = processInstance.getName();
+            if (processInstanceName == null) {
+                org.flowable.engine.repository.ProcessDefinition processDefinition =
+                        repositoryService.createProcessDefinitionQuery()
+                                .processDefinitionId(processInstance.getProcessDefinitionId())
+                                .singleResult();
+                if (processDefinition != null) {
+                    processInstanceName = processDefinition.getName();
+                }
+            }
+            copy.setProcessInstanceName(processInstanceName);
             copy.setProcessInstanceId(processInstance.getId());
             copy.setProcessDefinitionId(processInstance.getProcessDefinitionId());
             copy.setCategory(processInstance.getProcessDefinitionCategory());
