@@ -3,6 +3,7 @@ package com.forge.admin.modules.workflow.dto.task;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,6 +28,11 @@ public class TaskResponse {
      * 任务定义Key
      */
     private String taskDefinitionKey;
+
+    /**
+     * 流程编号
+     */
+    private String processNo;
 
     /**
      * 流程实例ID
@@ -87,4 +93,14 @@ public class TaskResponse {
      * 结束时间（历史任务）
      */
     private Date endTime;
+
+    /**
+     * 是否为候选任务（未认领）
+     */
+    private Boolean candidate;
+
+    /**
+     * 候选人名称列表
+     */
+    private List<String> candidateUsers;
 }

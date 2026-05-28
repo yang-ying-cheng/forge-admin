@@ -37,6 +37,7 @@
       >
         <vxe-column type="seq" title="序号" width="60" />
         <vxe-column field="processInstanceName" title="流程名称" min-width="180" />
+        <vxe-column field="processNo" title="流程编号" width="160" />
         <vxe-column field="activityName" title="抄送节点" width="140" />
         <vxe-column field="startUserName" title="发起人" width="100" />
         <vxe-column field="userName" title="被抄送人" width="100" />

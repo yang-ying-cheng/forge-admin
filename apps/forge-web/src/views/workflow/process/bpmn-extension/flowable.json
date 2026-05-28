@@ -28,6 +28,19 @@
       ]
     },
     {
+      "name": "StartEventInitiator",
+      "extends": [
+        "bpmn:StartEvent"
+      ],
+      "properties": [
+        {
+          "name": "initiator",
+          "isAttr": true,
+          "type": "String"
+        }
+      ]
+    },
+    {
       "name": "UserTaskCandidateStrategy",
       "extends": [
         "bpmn:UserTask"
@@ -178,7 +191,8 @@
         {
           "name": "operationRef",
           "isAttr": true,
-          "type": "String"
+          "type": "String",
+          "redefines": "bpmn:operationRef"
         },
         {
           "name": "extensionId",

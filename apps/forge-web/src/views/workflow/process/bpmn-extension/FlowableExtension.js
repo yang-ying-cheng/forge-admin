@@ -4,7 +4,7 @@
  */
 
 import { is } from 'bpmn-js/lib/util/ModelUtil'
-import { TextFieldEntry, SelectEntry, isTextFieldEntryEdited, isSelectEntryEdited } from '@bpmn-io/properties-panel'
+import { TextFieldEntry, SelectEntry, CheckboxEntry, isTextFieldEntryEdited, isSelectEntryEdited, isCheckboxEntryEdited } from '@bpmn-io/properties-panel'
 
 // 导入 Flowable moddle 扩展配置
 import flowableModdle from './flowable.json'
@@ -85,6 +85,21 @@ FlowablePropertiesProvider.prototype.getGroups = function(element) {
   return function(groups) {
     if (is(element, 'bpmn:UserTask')) {
       groups.push(createFlowableGroup(element, this._injector))
+    }
+    if (is(element, 'bpmn:SequenceFlow')) {
+      const source = element.source
+      if (source && (is(source, 'bpmn:ExclusiveGateway') || is(source, 'bpmn:InclusiveGateway'))) {
+        groups.push(createSequenceFlowConditionGroup(element, this._injector))
+      }
+    }
+    if (is(element, 'bpmn:StartEvent')) {
+      groups.push(createStartEventGroup(element, this._injector))
+    }
+    if (is(element, 'bpmn:ExclusiveGateway') || is(element, 'bpmn:ParallelGateway') || is(element, 'bpmn:InclusiveGateway')) {
+      groups.push(createGatewayGroup(element, this._injector))
+    }
+    if (is(element, 'bpmn:ServiceTask')) {
+      groups.push(createServiceTaskGroup(element, this._injector))
     }
     return groups
   }.bind(this)
@@ -533,6 +548,343 @@ function AssignStartUserHandlerSelect(props) {
       })
     },
     getOptions: () => ASSIGN_START_USER_HANDLER_OPTIONS,
+  })
+}
+
+// ========== SequenceFlow 条件配置 ==========
+
+const CONDITION_TYPE_OPTIONS = [
+  { value: '', label: '<无条件>' },
+  { value: '${approved == true}', label: '通过 (approved == true)' },
+  { value: '${approved == false}', label: '驳回 (approved == false)' },
+  { value: 'custom', label: '自定义表达式' },
+]
+
+function createSequenceFlowConditionGroup(element, injector) {
+  const translate = injector.get('translate')
+  const bo = element.businessObject
+  const condition = bo.conditionExpression
+  const body = condition ? (condition.body || '') : ''
+
+  const entries = [
+    { id: 'conditionType', component: ConditionTypeSelect, isEdited: isSelectEntryEdited },
+  ]
+
+  if (body && body !== '${approved == true}' && body !== '${approved == false}') {
+    entries.push({
+      id: 'customCondition',
+      component: CustomConditionField,
+      isEdited: isTextFieldEntryEdited,
+    })
+  }
+
+  return {
+    id: 'flowable-condition',
+    label: translate('条件配置'),
+    entries,
+  }
+}
+
+function ConditionTypeSelect(props) {
+  const { element } = props
+
+  const getValue = () => {
+    const bo = element.businessObject
+    const condition = bo.conditionExpression
+    if (!condition) return ''
+    const body = condition.body || ''
+    if (body === '${approved == true}') return body
+    if (body === '${approved == false}') return body
+    return 'custom'
+  }
+
+  const setValue = (value) => {
+    const modeler = window.bpmnModeler
+    if (!modeler) return
+    const modeling = modeler.get('modeling')
+    const moddle = modeler.get('moddle')
+
+    if (!value) {
+      modeling.updateProperties(element, { conditionExpression: undefined })
+    } else if (value !== 'custom') {
+      const conditionExpression = moddle.create('bpmn:FormalExpression', { body: value })
+      modeling.updateProperties(element, { conditionExpression })
+    }
+  }
+
+  return SelectEntry({
+    id: 'conditionType',
+    label: '条件类型',
+    getValue,
+    setValue,
+    getOptions: () => CONDITION_TYPE_OPTIONS,
+  })
+}
+
+function CustomConditionField(props) {
+  const { element } = props
+
+  const getValue = () => {
+    const bo = element.businessObject
+    const condition = bo.conditionExpression
+    if (!condition) return ''
+    const body = condition.body || ''
+    if (body === '${approved == true}' || body === '${approved == false}') return ''
+    return body
+  }
+
+  const setValue = (value) => {
+    const modeler = window.bpmnModeler
+    if (!modeler) return
+    const modeling = modeler.get('modeling')
+    const moddle = modeler.get('moddle')
+
+    if (!value) {
+      modeling.updateProperties(element, { conditionExpression: undefined })
+    } else {
+      const conditionExpression = moddle.create('bpmn:FormalExpression', { body: value })
+      modeling.updateProperties(element, { conditionExpression })
+    }
+  }
+
+  return TextFieldEntry({
+    id: 'customCondition',
+    label: '自定义表达式',
+    description: 'Flowable 条件表达式，如 ${amount > 1000}',
+    getValue,
+    setValue,
+    debounce: (fn) => fn,
+  })
+}
+
+// ========== StartEvent 属性 ==========
+
+function createStartEventGroup(element, injector) {
+  const translate = injector.get('translate')
+  return {
+    id: 'flowable-start',
+    label: translate('Flowable 属性'),
+    entries: [
+      { id: 'initiator', component: InitiatorTextField, isEdited: isTextFieldEntryEdited },
+      { id: 'startFormKey', component: StartFormKeyTextField, isEdited: isTextFieldEntryEdited },
+    ],
+  }
+}
+
+function InitiatorTextField(props) {
+  const { element } = props
+
+  const getValue = () => {
+    return element.businessObject.get('flowable:initiator') || ''
+  }
+
+  const setValue = (value) => {
+    const modeler = window.bpmnModeler
+    if (!modeler) return
+    modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+      'flowable:initiator': value || undefined,
+    })
+  }
+
+  return TextFieldEntry({
+    id: 'initiator',
+    label: '发起人变量',
+    description: '流程发起人存储的变量名，如填 initiator',
+    getValue,
+    setValue,
+    debounce: (fn) => fn,
+  })
+}
+
+function StartFormKeyTextField(props) {
+  const { element } = props
+
+  const getValue = () => {
+    return element.businessObject.get('flowable:formKey') || ''
+  }
+
+  const setValue = (value) => {
+    const modeler = window.bpmnModeler
+    if (!modeler) return
+    modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+      'flowable:formKey': value || undefined,
+    })
+  }
+
+  return TextFieldEntry({
+    id: 'startFormKey',
+    label: '表单标识',
+    description: '开始事件关联的表单标识',
+    getValue,
+    setValue,
+    debounce: (fn) => fn,
+  })
+}
+
+// ========== Gateway 异步执行配置 ==========
+
+function createGatewayGroup(element, injector) {
+  const translate = injector.get('translate')
+  return {
+    id: 'flowable-gateway',
+    label: translate('Flowable 属性'),
+    entries: [
+      { id: 'asyncBefore', component: AsyncBeforeCheckbox, isEdited: isCheckboxEntryEdited },
+      { id: 'asyncAfter', component: AsyncAfterCheckbox, isEdited: isCheckboxEntryEdited },
+      { id: 'exclusive', component: ExclusiveCheckbox, isEdited: isCheckboxEntryEdited },
+    ],
+  }
+}
+
+function AsyncBeforeCheckbox(props) {
+  const { element } = props
+  return CheckboxEntry({
+    id: 'asyncBefore',
+    label: '异步前',
+    getValue: () => !!element.businessObject.get('flowable:asyncBefore'),
+    setValue: (value) => {
+      const modeler = window.bpmnModeler
+      if (!modeler) return
+      modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+        'flowable:asyncBefore': value || undefined,
+      })
+    },
+  })
+}
+
+function AsyncAfterCheckbox(props) {
+  const { element } = props
+  return CheckboxEntry({
+    id: 'asyncAfter',
+    label: '异步后',
+    getValue: () => !!element.businessObject.get('flowable:asyncAfter'),
+    setValue: (value) => {
+      const modeler = window.bpmnModeler
+      if (!modeler) return
+      modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+        'flowable:asyncAfter': value || undefined,
+      })
+    },
+  })
+}
+
+function ExclusiveCheckbox(props) {
+  const { element } = props
+  return CheckboxEntry({
+    id: 'exclusive',
+    label: '排他执行',
+    description: '异步模式下是否独占执行，默认开启',
+    getValue: () => {
+      const v = element.businessObject.get('flowable:exclusive')
+      return v === undefined ? true : !!v
+    },
+    setValue: (value) => {
+      const modeler = window.bpmnModeler
+      if (!modeler) return
+      modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+        'flowable:exclusive': value,
+      })
+    },
+  })
+}
+
+// ========== ServiceTask 实现配置 ==========
+
+const SERVICE_IMPL_OPTIONS = [
+  { value: '', label: '<无>' },
+  { value: 'class', label: 'Java 类' },
+  { value: 'delegateExpression', label: '委托表达式' },
+  { value: 'expression', label: '表达式' },
+]
+
+function createServiceTaskGroup(element, injector) {
+  const translate = injector.get('translate')
+  const bo = element.businessObject
+  const hasImpl = bo.get('flowable:class') || bo.get('flowable:delegateExpression') || bo.get('flowable:expression')
+
+  const entries = [
+    { id: 'serviceImplType', component: ServiceImplTypeSelect, isEdited: isSelectEntryEdited },
+  ]
+
+  if (hasImpl || getServiceImplType(element) !== '') {
+    entries.push({
+      id: 'serviceImplValue',
+      component: ServiceImplValueField,
+      isEdited: isTextFieldEntryEdited,
+    })
+  }
+
+  return {
+    id: 'flowable-service',
+    label: translate('Flowable 属性'),
+    entries,
+  }
+}
+
+function getServiceImplType(element) {
+  const bo = element.businessObject
+  if (bo.get('flowable:class')) return 'class'
+  if (bo.get('flowable:delegateExpression')) return 'delegateExpression'
+  if (bo.get('flowable:expression')) return 'expression'
+  return ''
+}
+
+function ServiceImplTypeSelect(props) {
+  const { element } = props
+
+  return SelectEntry({
+    id: 'serviceImplType',
+    label: '实现方式',
+    getValue: () => getServiceImplType(element),
+    setValue: (value) => {
+      const modeler = window.bpmnModeler
+      if (!modeler) return
+      const modeling = modeler.get('modeling')
+      const bo = element.businessObject
+      const updateProps = {
+        'flowable:class': undefined,
+        'flowable:delegateExpression': undefined,
+        'flowable:expression': undefined,
+      }
+      if (value) {
+        updateProps['flowable:' + value] = ''
+      }
+      modeling.updateModdleProperties(element, bo, updateProps)
+    },
+    getOptions: () => SERVICE_IMPL_OPTIONS,
+  })
+}
+
+function ServiceImplValueField(props) {
+  const { element } = props
+  const implType = getServiceImplType(element)
+
+  const getValue = () => {
+    const bo = element.businessObject
+    return bo.get('flowable:' + implType) || ''
+  }
+
+  const setValue = (value) => {
+    const modeler = window.bpmnModeler
+    if (!modeler) return
+    modeler.get('modeling').updateModdleProperties(element, element.businessObject, {
+      ['flowable:' + implType]: value || undefined,
+    })
+  }
+
+  const labels = {
+    class: 'Java 类全限定名',
+    delegateExpression: '委托表达式，如 ${myDelegateBean}',
+    expression: '表达式，如 ${myService.execute(execution)}',
+  }
+
+  return TextFieldEntry({
+    id: 'serviceImplValue',
+    label: '实现值',
+    description: labels[implType] || '',
+    getValue,
+    setValue,
+    debounce: (fn) => fn,
   })
 }
 

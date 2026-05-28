@@ -47,6 +47,7 @@
       >
         <vxe-column type="seq" title="序号" width="60" />
         <vxe-column field="name" title="任务名称" min-width="150" />
+        <vxe-column field="processNo" title="流程编号" width="160" />
         <vxe-column field="processDefinitionName" title="流程名称" min-width="150" />
         <vxe-column v-if="!isMobile" field="assigneeName" title="受理人" width="100" />
         <vxe-column field="createTime" title="完成时间" width="170">

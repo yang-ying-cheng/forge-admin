@@ -66,6 +66,7 @@ public class WfTaskServiceImpl implements WfTaskService {
                 .taskAssignee(userId)
                 .taskCandidateUser(userId)
                 .endOr()
+                .includeProcessVariables()
                 .orderByTaskCreateTime().desc();
 
         buildTaskQueryConditions(query, request);
@@ -105,9 +106,14 @@ public class WfTaskServiceImpl implements WfTaskService {
             throw new BusinessException(401, "未获取到当前用户信息");
         }
 
+        String userId = String.valueOf(currentUserId);
         var query = historyService.createHistoricTaskInstanceQuery()
                 .finished()
-                .taskAssignee(String.valueOf(currentUserId))
+                .or()
+                .taskAssignee(userId)
+                .taskCandidateUser(userId)
+                .endOr()
+                .includeProcessVariables()
                 .orderByHistoricTaskInstanceEndTime().desc();
 
         buildHistoricTaskQueryConditions(query, request);
@@ -135,6 +141,7 @@ public class WfTaskServiceImpl implements WfTaskService {
     public TaskResponse getTaskById(String taskId) {
         Task task = taskService.createTaskQuery()
                 .taskId(taskId)
+                .includeProcessVariables()
                 .singleResult();
 
         if (task != null) {
@@ -146,6 +153,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         // 如果运行时任务不存在，尝试从历史记录获取
         HistoricTaskInstance historicTask = historyService.createHistoricTaskInstanceQuery()
                 .taskId(taskId)
+                .includeProcessVariables()
                 .singleResult();
 
         if (historicTask == null) {
@@ -264,8 +272,11 @@ public class WfTaskServiceImpl implements WfTaskService {
 
         String delegateUserId = String.valueOf(request.getDelegateUserId());
 
-        // 委派任务
-        taskService.delegateTask(taskId, delegateUserId);
+        // 委派任务：记录原处理人为 owner，设置被委派人为新 assignee
+        // 不使用 taskService.delegateTask()，因为它会产生 PENDING delegation state，
+        // 导致被委派人无法直接 complete 任务
+        taskService.setOwner(taskId, String.valueOf(currentUserId));
+        taskService.setAssignee(taskId, delegateUserId);
 
         // 保存委派意见
         String delegateUserName = flowableIdentityService.getUserName(request.getDelegateUserId());
@@ -393,9 +404,29 @@ public class WfTaskServiceImpl implements WfTaskService {
      * 验证当前用户是任务的处理人
      */
     private void validateTaskAssignee(Task task, Long currentUserId) {
-        if (task.getAssignee() == null || !task.getAssignee().equals(String.valueOf(currentUserId))) {
+        String userId = String.valueOf(currentUserId);
+        // 候选任务：先认领
+        if (task.getAssignee() == null) {
+            // 检查是否为候选人
+            try {
+                boolean isCandidate = taskService.getIdentityLinksForTask(task.getId()).stream()
+                        .anyMatch(link -> "candidate".equals(link.getType()) && userId.equals(link.getUserId()));
+                if (isCandidate) {
+                    taskService.claim(task.getId(), userId);
+                    task.setAssignee(userId);
+                } else {
+                    throw new BusinessException(403, "当前用户不是该任务的处理人");
+                }
+            } catch (BusinessException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new BusinessException(403, "当前用户不是该任务的处理人");
+            }
+        } else if (!task.getAssignee().equals(userId)) {
             throw new BusinessException(403, "当前用户不是该任务的处理人");
         }
+        // claim 会正确写入 ACT_HI_TASKINST.ASSIGNEE_，而 setAssignee 会产生 delegation state
+        // 候选任务已在上方通过 claim 处理，已指派任务的 assignee 由 BpmTaskCandidateListener 设置
     }
 
     /**
@@ -462,6 +493,12 @@ public class WfTaskServiceImpl implements WfTaskService {
             response.setProcessDefinitionName(definition.getName());
         }
 
+        // 流程编号
+        Map<String, Object> processVariables = task.getProcessVariables();
+        if (processVariables != null && processVariables.get("processNo") != null) {
+            response.setProcessNo(processVariables.get("processNo").toString());
+        }
+
         response.setAssignee(task.getAssignee());
         if (StrUtil.isNotBlank(task.getAssignee())) {
             try {
@@ -469,6 +506,26 @@ public class WfTaskServiceImpl implements WfTaskService {
                 response.setAssigneeName(userNameCache.getOrDefault(assigneeId, task.getAssignee()));
             } catch (NumberFormatException e) {
                 response.setAssigneeName(task.getAssignee());
+            }
+        } else {
+            response.setCandidate(true);
+            // 查询候选用户
+            try {
+                List<String> candidateNames = taskService.getIdentityLinksForTask(task.getId())
+                        .stream()
+                        .filter(link -> "candidate".equals(link.getType()) && link.getUserId() != null)
+                        .map(link -> {
+                            try {
+                                Long uid = Long.parseLong(link.getUserId());
+                                return userNameCache.getOrDefault(uid, link.getUserId());
+                            } catch (NumberFormatException e) {
+                                return link.getUserId();
+                            }
+                        })
+                        .collect(Collectors.toList());
+                response.setCandidateUsers(candidateNames);
+            } catch (Exception e) {
+                log.warn("查询候选用户失败: taskId={}", task.getId());
             }
         }
 
@@ -511,6 +568,12 @@ public class WfTaskServiceImpl implements WfTaskService {
         ProcessDefinition definition = definitionCache.get(historicTask.getProcessInstanceId());
         if (definition != null) {
             response.setProcessDefinitionName(definition.getName());
+        }
+
+        // 流程编号
+        Map<String, Object> processVariables = historicTask.getProcessVariables();
+        if (processVariables != null && processVariables.get("processNo") != null) {
+            response.setProcessNo(processVariables.get("processNo").toString());
         }
 
         response.setAssignee(historicTask.getAssignee());
@@ -615,6 +678,16 @@ public class WfTaskServiceImpl implements WfTaskService {
             }
             if (StrUtil.isNotBlank(task.getOwner())) {
                 try { userIds.add(Long.parseLong(task.getOwner())); } catch (NumberFormatException ignored) {}
+            }
+            // 候选任务的候选人ID
+            if (StrUtil.isBlank(task.getAssignee())) {
+                try {
+                    taskService.getIdentityLinksForTask(task.getId()).stream()
+                            .filter(link -> "candidate".equals(link.getType()) && link.getUserId() != null)
+                            .forEach(link -> {
+                                try { userIds.add(Long.parseLong(link.getUserId())); } catch (NumberFormatException ignored) {}
+                            });
+                } catch (Exception ignored) {}
             }
         }
         return flowableIdentityService.getUserNames(userIds);
@@ -736,6 +809,15 @@ public class WfTaskServiceImpl implements WfTaskService {
 
         Long currentUserId = SecurityUtils.getCurrentUserId();
 
+        // 获取流程编号
+        String processNo = null;
+        try {
+            Object noVar = taskService.getVariable(taskId, "processNo");
+            if (noVar != null) {
+                processNo = noVar.toString();
+            }
+        } catch (Exception ignored) {}
+
         for (Long copyUserId : request.getCopyUserIds()) {
             WfProcessInstanceCopy copy = new WfProcessInstanceCopy();
             copy.setStartUserId(currentUserId);
@@ -748,6 +830,7 @@ public class WfTaskServiceImpl implements WfTaskService {
             copy.setTaskId(taskId);
             copy.setUserId(copyUserId);
             copy.setReason(request.getReason());
+            copy.setProcessNo(processNo);
             copy.setCreateTime(LocalDateTime.now());
             copy.setCreateBy(currentUserId);
             wfProcessInstanceCopyMapper.insert(copy);

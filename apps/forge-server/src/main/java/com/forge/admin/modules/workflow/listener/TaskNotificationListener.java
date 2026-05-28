@@ -31,9 +31,9 @@ public class TaskNotificationListener implements TaskListener {
     @Override
     public void notify(DelegateTask delegateTask) {
         String eventName = delegateTask.getEventName();
-        if (!EVENTNAME_CREATE.equals(eventName)) {
-            return;
-        }
+//        if (!EVENTNAME_CREATE.equals(eventName)) {
+//            return;
+//        }
 
         try {
             String assignee = delegateTask.getAssignee();

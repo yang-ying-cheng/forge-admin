@@ -12,6 +12,7 @@ public class CopyResponse {
     private String startUserName;
     private String processInstanceName;
     private String processInstanceId;
+    private String processNo;
     private String category;
     private String activityId;
     private String activityName;

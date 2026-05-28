@@ -3,6 +3,7 @@ package com.forge.admin.modules.workflow.dto.instance;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 
 /**
  * 流程实例响应
@@ -63,9 +64,24 @@ public class ProcessInstanceResponse {
     private String startUserName;
 
     /**
+     * 流程编号
+     */
+    private String processNo;
+
+    /**
      * 当前节点名称
      */
     private String currentActivityName;
+
+    /**
+     * 当前节点受理人名称列表
+     */
+    private List<String> currentAssigneeNames;
+
+    /**
+     * 当前节点候选人名称列表（未分配处理人时）
+     */
+    private List<String> currentCandidateNames;
 
     /**
      * 挂起状态（1激活 2挂起）

@@ -50,6 +50,7 @@ public class WfProcessInstanceCopyServiceImpl implements WfProcessInstanceCopySe
             resp.setStartUserName(userNames.getOrDefault(copy.getStartUserId(), ""));
             resp.setProcessInstanceName(copy.getProcessInstanceName());
             resp.setProcessInstanceId(copy.getProcessInstanceId());
+            resp.setProcessNo(copy.getProcessNo());
             resp.setCategory(copy.getCategory());
             resp.setActivityId(copy.getActivityId());
             resp.setActivityName(copy.getActivityName());

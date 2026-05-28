@@ -33,6 +33,11 @@ public class WfProcessInstanceCopy {
     private String processInstanceId;
 
     /**
+     * 流程编号
+     */
+    private String processNo;
+
+    /**
      * 流程定义ID
      */
     private String processDefinitionId;

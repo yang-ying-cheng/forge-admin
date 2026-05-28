@@ -13,6 +13,7 @@ import com.forge.admin.modules.workflow.dto.instance.ProcessStartRequest;
 import com.forge.admin.modules.workflow.entity.WfApprovalComment;
 import com.forge.admin.modules.workflow.identity.FlowableIdentityService;
 import com.forge.admin.modules.workflow.mapper.WfApprovalCommentMapper;
+import com.forge.admin.modules.workflow.service.ProcessNoGenerator;
 import com.forge.admin.modules.workflow.service.WfProcessInstanceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ import org.flowable.engine.runtime.ProcessInstance;
 import org.flowable.image.ProcessDiagramGenerator;
 import org.flowable.image.impl.DefaultProcessDiagramGenerator;
 import org.flowable.task.api.Task;
+import org.flowable.task.api.history.HistoricTaskInstance;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +55,7 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
     private final IdentityService identityService;
     private final FlowableIdentityService flowableIdentityService;
     private final WfApprovalCommentMapper wfApprovalCommentMapper;
+    private final ProcessNoGenerator processNoGenerator;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -74,6 +77,7 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
     public ProcessInstanceResponse getInstanceById(String processInstanceId) {
         HistoricProcessInstance historicInstance = historyService.createHistoricProcessInstanceQuery()
                 .processInstanceId(processInstanceId)
+                .includeProcessVariables()
                 .singleResult();
 
         if (historicInstance == null) {
@@ -99,6 +103,7 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             Map<String, Object> variables = request.getVariables() != null
                     ? new HashMap<>(request.getVariables()) : new HashMap<>();
             variables.put("initiator", String.valueOf(currentUserId));
+            variables.put("processNo", processNoGenerator.generateNo());
 
             // 发起流程
             ProcessInstance processInstance = runtimeService.startProcessInstanceById(
@@ -274,7 +279,8 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
      */
     private Page<ProcessInstanceResponse> queryRunningInstances(ProcessInstanceQueryRequest request, Long startUserId) {
         var query = historyService.createHistoricProcessInstanceQuery()
-                .unfinished();
+                .unfinished()
+                .includeProcessVariables();
 
         buildQueryConditions(query, request, startUserId);
 
@@ -292,12 +298,13 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
     private Page<ProcessInstanceResponse> queryFinishedInstances(ProcessInstanceQueryRequest request,
                                                                   Long startUserId, String status) {
         var query = historyService.createHistoricProcessInstanceQuery()
-                .finished();
+                .finished()
+                .includeProcessVariables();
 
         if ("terminated".equals(status)) {
-            // 已终止 = 被删除的实例
             query = historyService.createHistoricProcessInstanceQuery()
-                    .deleted();
+                    .deleted()
+                    .includeProcessVariables();
         }
 
         buildQueryConditions(query, request, startUserId);
@@ -314,7 +321,8 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
      * 查询所有流程实例（不区分状态）
      */
     private Page<ProcessInstanceResponse> queryAllInstances(ProcessInstanceQueryRequest request, Long startUserId) {
-        var query = historyService.createHistoricProcessInstanceQuery();
+        var query = historyService.createHistoricProcessInstanceQuery()
+                .includeProcessVariables();
 
         buildQueryConditions(query, request, startUserId);
 
@@ -426,10 +434,15 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             }
         }
 
+        // 流程编号
+        Map<String, Object> processVariables = historicInstance.getProcessVariables();
+        if (processVariables != null && processVariables.get("processNo") != null) {
+            response.setProcessNo(processVariables.get("processNo").toString());
+        }
+
         // 获取当前活动节点名称（仅运行中的实例）
         if (historicInstance.getEndTime() == null) {
-            String currentActivityName = getCurrentActivityName(historicInstance.getId());
-            response.setCurrentActivityName(currentActivityName);
+            fillCurrentNodeInfo(historicInstance.getId(), response, userNameCache);
 
             // 检查挂起状态
             ProcessInstance runtimeInstance = runtimeService.createProcessInstanceQuery()
@@ -493,6 +506,62 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
         }
 
         return String.join(", ", names);
+    }
+
+    /**
+     * 填充当前节点的受理人/候选人信息
+     */
+    private void fillCurrentNodeInfo(String processInstanceId, ProcessInstanceResponse response,
+                                      Map<Long, String> userNameCache) {
+        // 获取当前活动节点名称
+        String currentActivityName = getCurrentActivityName(processInstanceId);
+        response.setCurrentActivityName(currentActivityName);
+
+        // 查询当前运行中的任务
+        List<org.flowable.task.api.Task> tasks = taskService.createTaskQuery()
+                .processInstanceId(processInstanceId)
+                .list();
+
+        List<String> assigneeNames = new ArrayList<>();
+        List<String> candidateNames = new ArrayList<>();
+        Set<Long> candidateIds = new HashSet<>();
+
+        for (org.flowable.task.api.Task task : tasks) {
+            if (StrUtil.isNotBlank(task.getAssignee())) {
+                try {
+                    Long uid = Long.parseLong(task.getAssignee());
+                    assigneeNames.add(userNameCache.getOrDefault(uid, task.getAssignee()));
+                } catch (NumberFormatException e) {
+                    assigneeNames.add(task.getAssignee());
+                }
+            } else {
+                // 候选任务，查询候选人
+                try {
+                    taskService.getIdentityLinksForTask(task.getId()).stream()
+                            .filter(link -> "candidate".equals(link.getType()) && link.getUserId() != null)
+                            .forEach(link -> {
+                                try {
+                                    Long uid = Long.parseLong(link.getUserId());
+                                    candidateIds.add(uid);
+                                } catch (NumberFormatException ignored) {}
+                            });
+                } catch (Exception ignored) {}
+            }
+        }
+
+        if (!candidateIds.isEmpty()) {
+            Map<Long, String> candidateNameMap = flowableIdentityService.getUserNames(candidateIds);
+            candidateNames.addAll(candidateIds.stream()
+                    .map(id -> candidateNameMap.getOrDefault(id, String.valueOf(id)))
+                    .collect(Collectors.toList()));
+        }
+
+        if (!assigneeNames.isEmpty()) {
+            response.setCurrentAssigneeNames(assigneeNames);
+        }
+        if (!candidateNames.isEmpty()) {
+            response.setCurrentCandidateNames(candidateNames);
+        }
     }
 
     /**
@@ -700,65 +769,134 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             }
         }
 
-        // 构建审批节点时间线
-        List<HistoricActivityInstance> activities = historyService.createHistoricActivityInstanceQuery()
+        // 构建审批节点时间线 — 使用 HistoricTaskInstance 获取准确的 assignee
+        List<HistoricTaskInstance> historicTasks = historyService.createHistoricTaskInstanceQuery()
                 .processInstanceId(processInstanceId)
-                .orderByHistoricActivityInstanceStartTime().asc()
+                .orderByHistoricTaskInstanceStartTime().asc()
                 .list();
 
-        // 获取所有审批人 ID
-        for (HistoricActivityInstance activity : activities) {
-            if (StrUtil.isNotBlank(activity.getAssignee())) {
-                try { userIds.add(Long.parseLong(activity.getAssignee())); } catch (NumberFormatException ignored) {}
+        // 查询运行时任务，交叉引用获取准确的 assignee（HistoricTaskInstance 可能不反映监听器设置）
+        Map<String, String> runtimeAssigneeMap = new HashMap<>();
+        try {
+            List<Task> runtimeTasks = taskService.createTaskQuery()
+                    .processInstanceId(processInstanceId)
+                    .list();
+            for (Task rt : runtimeTasks) {
+                if (StrUtil.isNotBlank(rt.getAssignee())) {
+                    runtimeAssigneeMap.put(rt.getId(), rt.getAssignee());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // 收集所有用户ID（审批人 + 候选人）
+        for (HistoricTaskInstance ht : historicTasks) {
+            // 优先使用运行时 assignee，fallback 到历史 assignee
+            String assignee = runtimeAssigneeMap.getOrDefault(ht.getId(), ht.getAssignee());
+            if (StrUtil.isNotBlank(assignee)) {
+                try { userIds.add(Long.parseLong(assignee)); } catch (NumberFormatException ignored) {}
+            }
+            if (StrUtil.isNotBlank(ht.getOwner())) {
+                try { userIds.add(Long.parseLong(ht.getOwner())); } catch (NumberFormatException ignored) {}
             }
         }
+
+        // 收集运行中候选任务的候选人ID（无 assignee 的任务）
+        Set<Long> candidateUserIds = new HashSet<>();
+        Map<String, List<String>> taskCandidateMap = new HashMap<>();
+        for (HistoricTaskInstance ht : historicTasks) {
+            String assignee = runtimeAssigneeMap.getOrDefault(ht.getId(), ht.getAssignee());
+            if (ht.getEndTime() == null && StrUtil.isBlank(assignee) && StrUtil.isNotBlank(ht.getId())) {
+                try {
+                    List<String> candidates = new ArrayList<>();
+                    taskService.getIdentityLinksForTask(ht.getId()).stream()
+                            .filter(link -> "candidate".equals(link.getType()) && link.getUserId() != null)
+                            .forEach(link -> {
+                                try {
+                                    Long uid = Long.parseLong(link.getUserId());
+                                    candidateUserIds.add(uid);
+                                    candidates.add(link.getUserId());
+                                } catch (NumberFormatException ignored) {}
+                            });
+                    if (!candidates.isEmpty()) {
+                        taskCandidateMap.put(ht.getId(), candidates);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        userIds.addAll(candidateUserIds);
         Map<Long, String> userNames = flowableIdentityService.getUserNames(userIds);
         detail.setStartUserName(userNames.getOrDefault(detail.getStartUserId(), ""));
 
-        // 按活动节点分组
+        // 加载 BPMN 模型用于获取节点名称
+        org.flowable.bpmn.model.BpmnModel bpmnModel = null;
+        if (StrUtil.isNotBlank(instance.getProcessDefinitionId())) {
+            bpmnModel = repositoryService.getBpmnModel(instance.getProcessDefinitionId());
+        }
+
+        // 按任务定义Key分组构建审批节点
         Map<String, ApprovalDetailResponse.ApprovalNode> nodeMap = new LinkedHashMap<>();
-        for (HistoricActivityInstance activity : activities) {
-            String activityId = activity.getActivityId();
-            ApprovalDetailResponse.ApprovalNode node = nodeMap.get(activityId);
+        for (HistoricTaskInstance ht : historicTasks) {
+            String taskDefKey = ht.getTaskDefinitionKey();
+            ApprovalDetailResponse.ApprovalNode node = nodeMap.get(taskDefKey);
             if (node == null) {
                 node = new ApprovalDetailResponse.ApprovalNode();
-                node.setActivityId(activityId);
-                node.setActivityName(activity.getActivityName());
-                node.setActivityType(activity.getActivityType());
-                node.setStartTime(activity.getStartTime() != null ?
-                        activity.getStartTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime() : null);
-                node.setEndTime(activity.getEndTime() != null ?
-                        activity.getEndTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime() : null);
-                node.setStatus(activity.getEndTime() != null ? 2 : 1);
+                node.setActivityId(taskDefKey);
+                node.setActivityName(ht.getName());
+                node.setActivityType("userTask");
+                node.setStartTime(ht.getCreateTime() != null ?
+                        ht.getCreateTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime() : null);
+                node.setEndTime(ht.getEndTime() != null ?
+                        ht.getEndTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime() : null);
+                node.setStatus(ht.getEndTime() != null ? 2 : 1);
                 node.setTasks(new ArrayList<>());
-                nodeMap.put(activityId, node);
+                nodeMap.put(taskDefKey, node);
             }
 
-            // 如果有审批人，添加到任务的列表
-            if (StrUtil.isNotBlank(activity.getAssignee())) {
-                ApprovalDetailResponse.ApprovalTask task = new ApprovalDetailResponse.ApprovalTask();
-                task.setTaskId(activity.getTaskId());
-                try { task.setUserId(Long.parseLong(activity.getAssignee())); } catch (NumberFormatException ignored) {}
-                task.setUserName(userNames.getOrDefault(task.getUserId(), ""));
-                task.setStatus(activity.getEndTime() != null ? 2 : 1);
-                task.setCreateTime(activity.getStartTime() != null ?
-                        activity.getStartTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime() : null);
-                task.setEndTime(activity.getEndTime() != null ?
-                        activity.getEndTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime() : null);
-
-                // 查找审批意见
-                if (StrUtil.isNotBlank(activity.getTaskId())) {
-                    LambdaQueryWrapper<WfApprovalComment> commentWrapper = new LambdaQueryWrapper<>();
-                    commentWrapper.eq(WfApprovalComment::getTaskId, activity.getTaskId())
-                            .orderByDesc(WfApprovalComment::getCreateTime)
-                            .last("LIMIT 1");
-                    WfApprovalComment comment = wfApprovalCommentMapper.selectOne(commentWrapper);
-                    if (comment != null) {
-                        task.setComment(comment.getCommentText());
-                    }
+            ApprovalDetailResponse.ApprovalTask task = new ApprovalDetailResponse.ApprovalTask();
+            task.setTaskId(ht.getId());
+            // 优先使用运行时 assignee，fallback 到历史 assignee
+            String assignee = runtimeAssigneeMap.getOrDefault(ht.getId(), ht.getAssignee());
+            if (StrUtil.isNotBlank(assignee)) {
+                try {
+                    Long uid = Long.parseLong(assignee);
+                    task.setUserId(uid);
+                    task.setUserName(userNames.getOrDefault(uid, assignee));
+                } catch (NumberFormatException e) {
+                    task.setUserName(assignee);
                 }
+            }
+            task.setStatus(ht.getEndTime() != null ? 2 : 1);
+            task.setCreateTime(ht.getCreateTime() != null ?
+                    ht.getCreateTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime() : null);
+            task.setEndTime(ht.getEndTime() != null ?
+                    ht.getEndTime().toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime() : null);
 
-                node.getTasks().add(task);
+            // 查找审批意见
+            if (StrUtil.isNotBlank(ht.getId())) {
+                LambdaQueryWrapper<WfApprovalComment> commentWrapper = new LambdaQueryWrapper<>();
+                commentWrapper.eq(WfApprovalComment::getTaskId, ht.getId())
+                        .orderByDesc(WfApprovalComment::getCreateTime)
+                        .last("LIMIT 1");
+                WfApprovalComment comment = wfApprovalCommentMapper.selectOne(commentWrapper);
+                if (comment != null) {
+                    task.setComment(comment.getCommentText());
+                }
+            }
+
+            node.getTasks().add(task);
+
+            // 候选人信息（运行中且无assignee的任务）
+            if (ht.getEndTime() == null && StrUtil.isBlank(assignee)) {
+                List<String> candidateIdStrs = taskCandidateMap.get(ht.getId());
+                if (candidateIdStrs != null && !candidateIdStrs.isEmpty()) {
+                    List<String> candidateNames = candidateIdStrs.stream()
+                            .map(idStr -> {
+                                try { return userNames.getOrDefault(Long.parseLong(idStr), idStr); }
+                                catch (NumberFormatException e) { return idStr; }
+                            })
+                            .collect(Collectors.toList());
+                    node.setCandidateUsers(candidateNames);
+                }
             }
         }
 

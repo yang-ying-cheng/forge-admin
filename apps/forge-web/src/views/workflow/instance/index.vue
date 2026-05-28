@@ -53,9 +53,26 @@
         show-header-overflow="tooltip"
       >
         <vxe-column type="seq" title="序号" width="60" />
+        <vxe-column field="processNo" title="流程编号" width="160" />
         <vxe-column field="processDefinitionName" title="流程名称" min-width="150" />
         <vxe-column field="startUserName" title="发起人" width="100" />
         <vxe-column field="currentActivityName" title="当前节点" width="120" />
+        <vxe-column title="受理人" min-width="150">
+          <template #default="{ row }">
+            <template v-if="row.currentAssigneeNames && row.currentAssigneeNames.length > 0">
+              {{ row.currentAssigneeNames.join(', ') }}
+            </template>
+            <template v-else-if="row.currentCandidateNames && row.currentCandidateNames.length > 0">
+              <el-tag type="warning" size="small">待认领</el-tag>
+              <span style="margin-left: 4px; color: #909399; font-size: 12px">
+                {{ row.currentCandidateNames.join(', ') }}
+              </span>
+            </template>
+            <template v-else-if="row.endTime">
+              <span style="color: #909399">-</span>
+            </template>
+          </template>
+        </vxe-column>
         <vxe-column title="状态" width="90" align="center">
           <template #default="{ row }">
             <el-tag v-if="!row.endTime" type="primary">运行中</el-tag>

@@ -44,9 +44,9 @@ public class BpmTaskCandidateListener implements TaskListener {
     @Override
     public void notify(DelegateTask delegateTask) {
         // 只处理任务创建事件
-        if (!EVENTNAME_CREATE.equals(delegateTask.getEventName())) {
-            return;
-        }
+//        if (!EVENTNAME_CREATE.equals(delegateTask.getEventName())) {
+//            return;
+//        }
 
         assignCandidates(delegateTask);
     }
@@ -124,17 +124,16 @@ public class BpmTaskCandidateListener implements TaskListener {
             return;
         }
 
-        // 单候选人直接分配，多候选人设为候选用户
+        // 统一使用 addCandidateUser，由 validateTaskAssignee 中 claim 认领
+        // delegateTask.setAssignee() 不会写入 ACT_HI_TASKINST，导致已办任务查不到
+        for (Long userId : userIds) {
+            delegateTask.addCandidateUser(String.valueOf(userId));
+        }
         if (userIds.size() == 1) {
-            Long userId = userIds.iterator().next();
-            delegateTask.setAssignee(String.valueOf(userId));
-            log.info("任务 {} 单候选人直接分配: strategy={}, assignee={}",
-                    delegateTask.getId(), strategyCode, userId);
+            log.info("任务 {} 单候选人: strategy={}, candidate={}",
+                    delegateTask.getId(), strategyCode, userIds.iterator().next());
         } else {
-            for (Long userId : userIds) {
-                delegateTask.addCandidateUser(String.valueOf(userId));
-            }
-            log.info("任务 {} 多候选人分配: strategy={}, candidates={}",
+            log.info("任务 {} 多候选人: strategy={}, candidates={}",
                     delegateTask.getId(), strategyCode, userIds);
         }
     }

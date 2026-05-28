@@ -47,15 +47,27 @@
       >
         <vxe-column type="seq" title="序号" width="60" />
         <vxe-column field="name" title="任务名称" min-width="150" />
+        <vxe-column field="processNo" title="流程编号" width="160" />
         <vxe-column field="processDefinitionName" title="流程名称" min-width="150" />
-        <vxe-column v-if="!isMobile" field="assigneeName" title="受理人" width="100" />
+        <vxe-column field="assigneeName" title="受理人" min-width="150">
+          <template #default="{ row }">
+            <template v-if="row.candidate">
+              <el-tag type="warning" size="small">待认领</el-tag>
+              <span v-if="row.candidateUsers?.length" style="margin-left: 6px; color: #909399; font-size: 12px">
+                {{ row.candidateUsers.join(', ') }}
+              </span>
+            </template>
+            <span v-else>{{ row.assigneeName || '-' }}</span>
+          </template>
+        </vxe-column>
         <vxe-column field="createTime" title="创建时间" width="170">
           <template #default="{ row }">
             {{ formatDateTime(row.createTime) }}
           </template>
         </vxe-column>
-        <vxe-column title="操作" width="100" fixed="right">
+        <vxe-column title="操作" width="160" fixed="right">
           <template #default="{ row }">
+            <el-button v-if="row.candidate" type="warning" link size="small" @click.stop="handleClaim(row)">认领</el-button>
             <el-button type="primary" link size="small" @click.stop="handleProcess(row)">处理</el-button>
           </template>
         </vxe-column>
@@ -76,6 +88,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import type { VxeTableInstance, VxeToolbarInstance } from 'vxe-table'
 import { taskApi } from '@/api/workflow/task'
 import type { TaskInfo, TaskQuery } from '@/types/workflow'
@@ -147,6 +160,17 @@ const handleReset = () => {
 // 处理任务
 const handleProcess = (row: TaskInfo) => {
   drawerRef.value?.open(row.id)
+}
+
+// 认领任务
+const handleClaim = async (row: TaskInfo) => {
+  try {
+    await taskApi.claim(row.id)
+    ElMessage.success('认领成功')
+    getList()
+  } catch {
+    // handled by request util
+  }
 }
 
 onMounted(() => {

@@ -34,6 +34,8 @@ public class ApprovalDetailResponse {
         private LocalDateTime startTime;
         private LocalDateTime endTime;
         private List<ApprovalTask> tasks;
+        /** 候选人名称列表（未分配处理人时） */
+        private List<String> candidateUsers;
     }
 
     @Data

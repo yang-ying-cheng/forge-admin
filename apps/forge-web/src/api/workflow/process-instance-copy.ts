@@ -7,6 +7,7 @@ export interface ProcessInstanceCopy {
   startUserName: string
   processInstanceName: string
   processInstanceId: string
+  processNo: string
   category: string
   activityId: string
   activityName: string

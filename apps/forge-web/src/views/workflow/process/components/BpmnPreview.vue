@@ -11,6 +11,7 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css'
 
 const props = defineProps<{
   xml: string
+  highlightElements?: string[]
 }>()
 
 const containerRef = ref<HTMLElement | null>(null)
@@ -30,6 +31,24 @@ const initViewer = async () => {
   }
 }
 
+const applyHighlight = async () => {
+  if (!viewer.value || !props.highlightElements || props.highlightElements.length === 0) return
+
+  try {
+    const elementRegistry = viewer.value.get('elementRegistry')
+    const canvas = viewer.value.get('canvas')
+
+    for (const elementId of props.highlightElements) {
+      const element = elementRegistry.get(elementId)
+      if (element) {
+        canvas.addMarker(elementId, 'highlight-current')
+      }
+    }
+  } catch (err) {
+    console.error('高亮节点失败:', err)
+  }
+}
+
 const renderXml = async (xml: string) => {
   if (!viewer.value || !xml) return
 
@@ -37,16 +56,54 @@ const renderXml = async (xml: string) => {
     await viewer.value.importXML(xml)
     const canvas = viewer.value.get('canvas')
     canvas.zoom('fit-viewport')
+
+    // 添加高亮样式
+    addHighlightStyles()
+
+    // 应用高亮
+    await applyHighlight()
   } catch (err) {
     console.error('渲染 BPMN XML 失败:', err)
   }
 }
 
-watch(() => props.xml, (newXml) => {
+const addHighlightStyles = () => {
+  // 避免重复添加
+  if (document.getElementById('bpmn-highlight-styles')) return
+
+  const style = document.createElement('style')
+  style.id = 'bpmn-highlight-styles'
+  style.textContent = `
+    .bpmn-preview-container .highlight-current .djs-visual > :nth-child(1) {
+      stroke: #e6a23c !important;
+      stroke-width: 3px !important;
+      fill: rgba(230, 162, 60, 0.15) !important;
+    }
+    .bpmn-preview-container .highlight-current > .djs-visual > text {
+      fill: #e6a23c !important;
+    }
+  `
+  document.head.appendChild(style)
+}
+
+watch(() => props.xml, async (newXml) => {
   if (newXml && viewer.value) {
-    renderXml(newXml)
+    await renderXml(newXml)
   }
 })
+
+watch(() => props.highlightElements, async () => {
+  if (viewer.value) {
+    // 先清除旧的高亮
+    const canvas = viewer.value.get('canvas')
+    const elementRegistry = viewer.value.get('elementRegistry')
+    const elements = elementRegistry.getAll()
+    for (const el of elements) {
+      try { canvas.removeMarker(el.id, 'highlight-current') } catch {}
+    }
+    await applyHighlight()
+  }
+}, { deep: true })
 
 onMounted(() => {
   initViewer()

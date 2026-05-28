@@ -75,6 +75,7 @@ export interface ProcessInstance {
   processDefinitionId: string
   processDefinitionName: string
   processDefinitionKey: string
+  processNo: string
   businessKey: string
   startTime: string
   endTime: string | null
@@ -82,6 +83,8 @@ export interface ProcessInstance {
   startUserId: string
   startUserName: string
   currentActivityName: string
+  currentAssigneeNames?: string[]
+  currentCandidateNames?: string[]
   suspensionState: number
   deleteReason: string | null
 }
@@ -110,6 +113,7 @@ export interface TaskInfo {
   taskDefinitionKey: string
   processInstanceId: string
   processDefinitionName: string
+  processNo: string
   assignee: string
   assigneeName: string
   owner: string
@@ -120,6 +124,8 @@ export interface TaskInfo {
   category: string
   variables: Record<string, any>
   endTime: string | null
+  candidate?: boolean
+  candidateUsers?: string[]
 }
 
 export interface TaskQuery {
@@ -170,4 +176,40 @@ export interface ApprovalComment {
 export interface ReturnNode {
   taskDefKey: string
   taskName: string
+}
+
+// 审批详情
+export interface ApprovalDetail {
+  processInstanceId: string
+  processInstanceName: string
+  processDefinitionId: string
+  category: string
+  status: number
+  startTime: string
+  endTime: string | null
+  startUserId: number
+  startUserName: string
+  bpmnXml: string
+  nodes: ApprovalNode[]
+}
+
+export interface ApprovalNode {
+  activityId: string
+  activityName: string
+  activityType: string
+  status: number  // 1=进行中 2=已完成
+  startTime: string
+  endTime: string | null
+  tasks: ApprovalTask[]
+  candidateUsers?: string[]
+}
+
+export interface ApprovalTask {
+  taskId: string
+  userId: number
+  userName: string
+  status: number  // 1=进行中 2=已完成
+  comment: string
+  createTime: string
+  endTime: string | null
 }

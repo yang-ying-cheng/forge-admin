@@ -20,6 +20,9 @@
             </div>
           </template>
           <el-descriptions :column="1" size="small" border>
+            <el-descriptions-item label="流程编号">
+              {{ instanceInfo?.processNo || '-' }}
+            </el-descriptions-item>
             <el-descriptions-item label="流程名称">
               {{ instanceInfo?.processDefinitionName || '-' }}
             </el-descriptions-item>
@@ -88,6 +91,7 @@
           </template>
           <el-descriptions :column="1" size="small" border>
             <el-descriptions-item label="任务名称">{{ taskInfo?.name || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="流程编号">{{ taskInfo?.processNo || '-' }}</el-descriptions-item>
             <el-descriptions-item label="流程名称">{{ taskInfo?.processDefinitionName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="受理人">{{ taskInfo?.assigneeName || '-' }}</el-descriptions-item>
             <el-descriptions-item label="创建时间">{{ formatDateTime(taskInfo?.createTime) }}</el-descriptions-item>
