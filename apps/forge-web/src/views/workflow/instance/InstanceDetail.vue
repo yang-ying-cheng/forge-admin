@@ -94,12 +94,11 @@
     </div>
 
     <!-- 流程图弹窗 -->
-    <el-dialog v-model="diagramDialogVisible" title="流程图" width="800px" top="5vh" @opened="handleDiagramOpened">
-      <div ref="diagramContainerRef" style="height: 60vh">
-        <BpmnPreview v-if="bpmnXml && diagramDialogVisible" :xml="bpmnXml" :highlight-elements="activeActivityIds" :key="diagramKey" />
-        <el-empty v-else description="暂无流程图" />
-      </div>
-    </el-dialog>
+    <FlowDiagramDialog
+      v-model="diagramDialogVisible"
+      :bpmn-xml="bpmnXml"
+      :active-activity-ids="activeActivityIds"
+    />
   </div>
 </template>
 
@@ -113,7 +112,7 @@ import { formApi } from '@/api/workflow/form'
 import type { ProcessInstance, ApprovalNode, ApprovalComment } from '@/types/workflow'
 import { formatDateTime } from '@/utils/dateFormat'
 import { decodeFieldsDisabled } from '@/utils/formCreate'
-import BpmnPreview from '@/views/workflow/process/components/BpmnPreview.vue'
+import FlowDiagramDialog from '@/views/workflow/process/components/FlowDiagramDialog.vue'
 import { useResponsive } from '@/composables/useResponsive'
 
 const { isMobile } = useResponsive()
@@ -126,8 +125,6 @@ const approvalNodes = ref<ApprovalNode[]>([])
 const comments = ref<ApprovalComment[]>([])
 const bpmnXml = ref('')
 const diagramDialogVisible = ref(false)
-const diagramContainerRef = ref<HTMLElement | null>(null)
-const diagramKey = ref(0)
 
 const instanceId = route.query.id as string
 
@@ -166,10 +163,6 @@ const activeActivityIds = computed(() => {
     .filter(n => n.status === 1)
     .map(n => n.activityId)
 })
-
-const handleDiagramOpened = () => {
-  diagramKey.value++
-}
 
 // 表单相关
 const formCreateRef = ref<any>(null)
