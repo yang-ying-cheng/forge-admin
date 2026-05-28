@@ -43,5 +43,8 @@ export const DICT_TYPE = {
   SYS_OPERATION_TYPE: 'sys_oper_type',
 
   /** 标签样式类型 */
-  SYS_TAG_TYPE: 'sys_tag_type'
+  SYS_TAG_TYPE: 'sys_tag_type',
+
+  /** 审批操作类型 */
+  WF_ACTION_TYPE: 'wf_action_type'
 } as const

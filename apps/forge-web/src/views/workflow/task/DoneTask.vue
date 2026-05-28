@@ -55,9 +55,10 @@
             {{ formatDateTime(row.createTime) }}
           </template>
         </vxe-column>
-        <vxe-column title="操作" width="100" fixed="right">
+        <vxe-column title="操作" width="140" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click.stop="handleView(row)">查看</el-button>
+            <el-button type="warning" link size="small" @click.stop="handleWithdraw(row)">撤回</el-button>
           </template>
         </vxe-column>
       </vxe-table>
@@ -77,6 +78,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { VxeTableInstance, VxeToolbarInstance } from 'vxe-table'
 import { taskApi } from '@/api/workflow/task'
 import type { TaskInfo, TaskQuery } from '@/types/workflow'
@@ -148,6 +150,18 @@ const handleReset = () => {
 // 查看任务详情
 const handleView = (row: TaskInfo) => {
   drawerRef.value?.open(row.id)
+}
+
+// 撤回任务
+const handleWithdraw = async (row: TaskInfo) => {
+  try {
+    await ElMessageBox.confirm(`确定撤回任务"${row.name}"？撤回后流程将退回到该任务节点`, '提示', { type: 'warning' })
+    await taskApi.withdraw(row.id)
+    ElMessage.success('撤回成功')
+    getList()
+  } catch {
+    // 用户取消或后端错误
+  }
 }
 
 onMounted(() => {

@@ -7,6 +7,7 @@ import com.forge.admin.common.utils.SecurityUtils;
 import com.forge.admin.modules.workflow.dto.task.*;
 import com.forge.admin.modules.workflow.entity.WfApprovalComment;
 import com.forge.admin.modules.workflow.entity.WfProcessInstanceCopy;
+import com.forge.admin.modules.workflow.framework.ApprovalActionTypeEnum;
 import com.forge.admin.modules.workflow.identity.FlowableIdentityService;
 import com.forge.admin.modules.workflow.mapper.WfApprovalCommentMapper;
 import com.forge.admin.modules.workflow.mapper.WfProcessInstanceCopyMapper;
@@ -208,7 +209,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         }
 
         // 保存审批意见
-        saveApprovalComment(task, currentUserId, userName, "submit", request.getComment());
+        saveApprovalComment(task, currentUserId, userName, ApprovalActionTypeEnum.SUBMIT.getCode(), request.getComment());
 
         log.info("任务完成：taskId={}, userId={}", taskId, currentUserId);
     }
@@ -232,7 +233,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         taskService.complete(taskId, variables);
 
         // 保存审批通过意见
-        saveApprovalComment(task, currentUserId, userName, "approve", request.getComment());
+        saveApprovalComment(task, currentUserId, userName, ApprovalActionTypeEnum.APPROVE.getCode(), request.getComment());
 
         log.info("任务审批通过：taskId={}, userId={}", taskId, currentUserId);
     }
@@ -247,7 +248,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         validateTaskAssignee(task, currentUserId);
 
         // 保存审批驳回意见
-        saveApprovalComment(task, currentUserId, userName, "reject", request.getComment());
+        saveApprovalComment(task, currentUserId, userName, ApprovalActionTypeEnum.REJECT.getCode(), request.getComment());
 
         // 驳回时直接终止流程实例，设置 deleteReason 使前端显示"已终止"
         String processInstanceId = task.getProcessInstanceId();
@@ -279,7 +280,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         String commentText = StrUtil.isNotBlank(request.getComment())
                 ? request.getComment()
                 : "任务委派给：" + delegateUserName;
-        saveApprovalComment(task, currentUserId, userName, "delegate", commentText);
+        saveApprovalComment(task, currentUserId, userName, ApprovalActionTypeEnum.DELEGATE.getCode(), commentText);
 
         log.info("任务委派：taskId={}, fromUser={}, toUser={}", taskId, currentUserId, delegateUserId);
     }
@@ -303,7 +304,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         String commentText = StrUtil.isNotBlank(request.getComment())
                 ? request.getComment()
                 : "任务转办给：" + transferUserName;
-        saveApprovalComment(task, currentUserId, userName, "transfer", commentText);
+        saveApprovalComment(task, currentUserId, userName, ApprovalActionTypeEnum.TRANSFER.getCode(), commentText);
 
         log.info("任务转办：taskId={}, fromUser={}, toUser={}", taskId, currentUserId, transferUserId);
     }
@@ -335,7 +336,7 @@ public class WfTaskServiceImpl implements WfTaskService {
                 .changeState();
 
         // 保存退回意见
-        saveApprovalComment(task, currentUserId, userName, "return", request.getComment());
+        saveApprovalComment(task, currentUserId, userName, ApprovalActionTypeEnum.RETURN.getCode(), request.getComment());
 
         log.info("任务退回：taskId={}, fromNode={}, toNode={}, userId={}",
                 taskId, currentActivityId, targetActivityId, currentUserId);
@@ -761,7 +762,7 @@ public class WfTaskServiceImpl implements WfTaskService {
                     "加签给用户[" + userId + "]，原因：" + request.getReason());
         }
 
-        saveApprovalComment(task, currentUserId, currentUsername, "SIGN_CREATE",
+        saveApprovalComment(task, currentUserId, currentUsername, ApprovalActionTypeEnum.SIGN_CREATE.getCode(),
                 "加签操作，类型：" + request.getType() + "，原因：" + request.getReason());
         log.info("任务加签成功：taskId={}, type={}, userIds={}", taskId, request.getType(), request.getUserIds());
     }
@@ -783,7 +784,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         String currentUsername = SecurityUtils.getCurrentUsername();
 
         taskService.deleteTask(request.getChildTaskId(), "减签：" + request.getReason());
-        saveApprovalComment(parentTask, currentUserId, currentUsername, "SIGN_DELETE",
+        saveApprovalComment(parentTask, currentUserId, currentUsername, ApprovalActionTypeEnum.SIGN_DELETE.getCode(),
                 "减签操作，移除子任务[" + request.getChildTaskId() + "]，原因：" + request.getReason());
         log.info("任务减签成功：taskId={}, childTaskId={}", taskId, request.getChildTaskId());
     }
@@ -833,7 +834,7 @@ public class WfTaskServiceImpl implements WfTaskService {
         }
 
         String currentUsername = SecurityUtils.getCurrentUsername();
-        saveApprovalComment(task, currentUserId, currentUsername, "COPY",
+        saveApprovalComment(task, currentUserId, currentUsername, ApprovalActionTypeEnum.COPY.getCode(),
                 "抄送给用户[" + request.getCopyUserIds() + "]，原因：" + request.getReason());
         log.info("任务抄送成功：taskId={}, copyUserIds={}", taskId, request.getCopyUserIds());
     }
@@ -875,14 +876,14 @@ public class WfTaskServiceImpl implements WfTaskService {
                         historicTask.getTaskDefinitionKey())
                 .changeState();
 
-        String currentUsername = SecurityUtils.getCurrentUsername();
+        String currentUsername = SecurityUtils.getCurrentNickame();
         Task newTask = taskService.createTaskQuery()
                 .processInstanceId(processInstanceId)
                 .taskDefinitionKey(historicTask.getTaskDefinitionKey())
                 .singleResult();
         if (newTask != null) {
             taskService.setAssignee(newTask.getId(), String.valueOf(currentUserId));
-            saveApprovalComment(newTask, currentUserId, currentUsername, "WITHDRAW", "撤回任务");
+            saveApprovalComment(newTask, currentUserId, currentUsername, ApprovalActionTypeEnum.WITHDRAW.getCode(), "撤回任务");
         }
 
         log.info("任务撤回成功：taskId={}, processInstanceId={}", taskId, processInstanceId);

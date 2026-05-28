@@ -173,7 +173,7 @@ export interface ApprovalComment {
   taskName: string
   userId: number
   userName: string
-  actionType: 'approve' | 'reject' | 'delegate' | 'transfer' | 'return' | 'claim' | 'submit' | 'cancel'
+  actionType: string
   commentText: string
   attachmentIds: string
   createTime: string

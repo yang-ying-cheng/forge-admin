@@ -12,9 +12,18 @@
         <template #header>
           <div class="card-header">
             <span>实例信息</span>
-            <el-button type="primary" size="small" @click="diagramDialogVisible = true">
-              查看流程图
-            </el-button>
+            <div>
+              <el-button
+                v-if="isDoneTask"
+                type="warning"
+                size="small"
+                :loading="actionLoading"
+                @click="handleWithdraw"
+              >撤回</el-button>
+              <el-button type="primary" size="small" @click="diagramDialogVisible = true">
+                查看流程图
+              </el-button>
+            </div>
           </div>
         </template>
         <el-descriptions :column="isMobile ? 1 : 2" size="small" border>
@@ -147,9 +156,7 @@
           <el-table-column prop="userName" label="审批人" width="80" />
           <el-table-column prop="actionType" label="动作" width="70" align="center">
             <template #default="{ row }">
-              <el-tag size="small" :type="actionTagType(row.actionType)">
-                {{ actionLabel(row.actionType) }}
-              </el-tag>
+              <dict-value :dict-type="DICT_TYPE.WF_ACTION_TYPE" :value="row.actionType" />
             </template>
           </el-table-column>
           <el-table-column prop="taskName" label="任务" min-width="100" />
@@ -294,6 +301,7 @@ import { formatDateTime } from '@/utils/dateFormat'
 import { decodeFieldsDisabled } from '@/utils/formCreate'
 import FlowDiagramDialog from '@/views/workflow/process/components/FlowDiagramDialog.vue'
 import { useResponsive } from '@/composables/useResponsive'
+import { DICT_TYPE } from '@/constants/dict'
 
 const { isMobile } = useResponsive()
 
@@ -385,36 +393,6 @@ const resetState = () => {
   formReady.value = false
   approveSelectTasks.value = []
   Object.keys(selectedUsers).forEach(k => delete selectedUsers[k])
-}
-
-// 审批动作标签映射
-const actionLabel = (actionType: string): string => {
-  const map: Record<string, string> = {
-    approve: '通过',
-    reject: '驳回',
-    delegate: '委派',
-    transfer: '转办',
-    return: '退回',
-    claim: '认领',
-    submit: '提交',
-    cancel: '取消'
-  }
-  return map[actionType] || actionType
-}
-
-// 审批动作标签类型映射
-const actionTagType = (actionType: string): 'success' | 'danger' | 'warning' | 'info' | 'primary' => {
-  const map: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'primary'> = {
-    approve: 'success',
-    reject: 'danger',
-    delegate: 'warning',
-    transfer: 'warning',
-    return: 'info',
-    claim: 'primary',
-    submit: 'primary',
-    cancel: 'danger'
-  }
-  return map[actionType] || 'info'
 }
 
 // 搜索用户
@@ -674,6 +652,28 @@ const handleReturnConfirm = async () => {
     ElMessage.error('退回失败')
   } finally {
     actionLoading.value = false
+  }
+}
+
+// 撤回任务（已办任务）
+const handleWithdraw = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确定撤回任务"${taskInfo.value?.name}"？撤回后流程将退回到该任务节点`,
+      '提示',
+      { type: 'warning' }
+    )
+    actionLoading.value = true
+    try {
+      await taskApi.withdraw(taskId.value)
+      ElMessage.success('撤回成功')
+      emit('success')
+      handleClose()
+    } finally {
+      actionLoading.value = false
+    }
+  } catch {
+    // 用户取消
   }
 }
 

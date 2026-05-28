@@ -11,6 +11,7 @@ import com.forge.admin.modules.workflow.dto.instance.ProcessInstanceQueryRequest
 import com.forge.admin.modules.workflow.dto.instance.ProcessInstanceResponse;
 import com.forge.admin.modules.workflow.dto.instance.ProcessStartRequest;
 import com.forge.admin.modules.workflow.entity.WfApprovalComment;
+import com.forge.admin.modules.workflow.framework.ApprovalActionTypeEnum;
 import com.forge.admin.modules.workflow.identity.FlowableIdentityService;
 import com.forge.admin.modules.workflow.mapper.WfApprovalCommentMapper;
 import com.forge.admin.modules.workflow.service.ProcessNoGenerator;
@@ -172,7 +173,7 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
                 "取消流程",
                 currentUserId,
                 userName,
-                "cancel",
+                ApprovalActionTypeEnum.CANCEL.getCode(),
                 "用户主动取消流程"
         );
 
@@ -861,6 +862,12 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
                 node.setStatus(ht.getEndTime() != null ? 2 : 1);
                 node.setTasks(new ArrayList<>());
                 nodeMap.put(taskDefKey, node);
+            }
+
+            // 节点已存在时，如果有新的运行中任务，更新节点状态
+            if (ht.getEndTime() == null) {
+                node.setStatus(1);
+                node.setEndTime(null);
             }
 
             ApprovalDetailResponse.ApprovalTask task = new ApprovalDetailResponse.ApprovalTask();

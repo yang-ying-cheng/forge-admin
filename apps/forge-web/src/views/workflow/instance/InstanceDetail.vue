@@ -80,9 +80,7 @@
             <el-table-column prop="userName" label="审批人" width="100" />
             <el-table-column prop="actionType" label="动作" width="80" align="center">
               <template #default="{ row }">
-                <el-tag size="small" :type="actionTagType(row.actionType)">
-                  {{ actionLabel(row.actionType) }}
-                </el-tag>
+                <dict-value :dict-type="DICT_TYPE.WF_ACTION_TYPE" :value="row.actionType" />
               </template>
             </el-table-column>
             <el-table-column prop="taskName" label="任务名称" min-width="120" />
@@ -114,6 +112,7 @@ import { formatDateTime } from '@/utils/dateFormat'
 import { decodeFieldsDisabled } from '@/utils/formCreate'
 import FlowDiagramDialog from '@/views/workflow/process/components/FlowDiagramDialog.vue'
 import { useResponsive } from '@/composables/useResponsive'
+import { DICT_TYPE } from '@/constants/dict'
 
 const { isMobile } = useResponsive()
 const route = useRoute()
@@ -129,34 +128,6 @@ const diagramDialogVisible = ref(false)
 const instanceId = route.query.id as string
 
 // 审批动作标签映射
-const actionLabel = (actionType: string): string => {
-  const map: Record<string, string> = {
-    approve: '通过',
-    reject: '驳回',
-    delegate: '委派',
-    transfer: '转办',
-    return: '退回',
-    claim: '认领',
-    submit: '提交',
-    cancel: '取消'
-  }
-  return map[actionType] || actionType
-}
-
-const actionTagType = (actionType: string): 'success' | 'danger' | 'warning' | 'info' | 'primary' => {
-  const map: Record<string, 'success' | 'danger' | 'warning' | 'info' | 'primary'> = {
-    approve: 'success',
-    reject: 'danger',
-    delegate: 'warning',
-    transfer: 'warning',
-    return: 'info',
-    claim: 'primary',
-    submit: 'primary',
-    cancel: 'danger'
-  }
-  return map[actionType] || 'info'
-}
-
 // 当前活跃节点ID列表（用于流程图高亮）
 const activeActivityIds = computed(() => {
   return approvalNodes.value
