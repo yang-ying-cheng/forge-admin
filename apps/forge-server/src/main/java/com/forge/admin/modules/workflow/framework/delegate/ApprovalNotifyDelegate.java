@@ -11,10 +11,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * 审批结果通知委托
- * 审批完成后自动通知流程发起人
+ * 审批通过后自动通知流程发起人
  *
  * BPMN 配置: flowable:delegateExpression="${approvalNotifyDelegate}"
- * 使用场景: 排他网关之后，审批通过/驳回分支上各放一个，分别设置 approved 变量
+ * 使用场景: 用户审批节点之后，审批通过时 WfTaskServiceImpl 已设置 approved=true，
+ *          驳回时流程直接终止不会走到此节点
+ *
+ * 流程示例: 开始 → 用户任务(审批) → [本节点] → 结束
  */
 @Slf4j
 @Component("approvalNotifyDelegate")
