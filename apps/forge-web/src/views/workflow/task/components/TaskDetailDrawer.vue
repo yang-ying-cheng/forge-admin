@@ -142,6 +142,10 @@
             <el-icon><Back /></el-icon>
             退回
           </el-button>
+          <el-button :loading="actionLoading" @click="copyDialogVisible = true">
+            <el-icon><DocumentCopy /></el-icon>
+            抄送
+          </el-button>
         </div>
       </el-card>
 
@@ -284,6 +288,46 @@
         <el-button type="primary" :loading="actionLoading" @click="handleReturnConfirm" :disabled="!returnTargetKey">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 抄送对话框 -->
+    <el-dialog v-model="copyDialogVisible" title="抄送任务" width="500px" @close="handleCopyDialogClose">
+      <el-form label-width="80px">
+        <el-form-item label="抄送给" required>
+          <el-select
+            v-model="copyUserIds"
+            multiple
+            filterable
+            remote
+            reserve-keyword
+            placeholder="请输入用户名搜索"
+            :remote-method="searchUsers"
+            :loading="userSearchLoading"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="user in userOptions"
+              :key="user.id"
+              :label="`${user.nickname}（${user.username}）`"
+              :value="user.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="抄送原因">
+          <el-input
+            v-model="copyReason"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入抄送原因"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="copyDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="actionLoading" @click="handleCopyConfirm">确定</el-button>
+      </template>
+    </el-dialog>
   </el-drawer>
 </template>
 
@@ -367,6 +411,11 @@ const returnNodes = ref<ReturnNode[]>([])
 // 用户搜索相关
 const userSearchLoading = ref(false)
 const userOptions = ref<User[]>([])
+
+// 抄送相关
+const copyDialogVisible = ref(false)
+const copyUserIds = ref<number[]>([])
+const copyReason = ref('')
 
 // 打开抽屉
 const open = async (id: string) => {
@@ -693,6 +742,33 @@ const handleTransferDialogClose = () => {
 const handleReturnDialogClose = () => {
   returnTargetKey.value = ''
   returnComment.value = ''
+}
+
+// 抄送确认
+const handleCopyConfirm = async () => {
+  if (copyUserIds.value.length === 0) {
+    ElMessage.warning('请选择抄送用户')
+    return
+  }
+  actionLoading.value = true
+  try {
+    await taskApi.copy(taskId.value, {
+      copyUserIds: copyUserIds.value,
+      reason: copyReason.value || undefined,
+    })
+    ElMessage.success('抄送成功')
+    copyDialogVisible.value = false
+  } catch {
+    ElMessage.error('抄送失败')
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+const handleCopyDialogClose = () => {
+  copyUserIds.value = []
+  copyReason.value = ''
+  userOptions.value = []
 }
 
 defineExpose({ open })

@@ -45,6 +45,11 @@
         <vxe-column field="createTime" title="抄送时间" width="180">
           <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
         </vxe-column>
+        <vxe-column title="操作" width="80" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" link size="small" @click.stop="handleViewDetail(row)">详情</el-button>
+          </template>
+        </vxe-column>
       </vxe-table>
 
       <el-pagination
@@ -63,10 +68,13 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import type { VxeTableInstance, VxeToolbarInstance } from 'vxe-table'
+import { useRouter } from 'vue-router'
 import { useTableHeight } from '@/composables/useTableHeight'
 import { useTableSeq } from '@/composables/useTableSeq'
 import { formatDateTime } from '@/utils/dateFormat'
 import { copyApi, type CopyQuery, type ProcessInstanceCopy } from '@/api/workflow/process-instance-copy'
+
+const router = useRouter()
 
 const { tableHeight } = useTableHeight()
 const tableRef = ref<VxeTableInstance | null>(null)
@@ -114,6 +122,10 @@ const handleReset = () => {
   queryParams.processInstanceName = undefined
   queryParams.pageNum = 1
   getList()
+}
+
+const handleViewDetail = (row: ProcessInstanceCopy) => {
+  router.push({ path: '/workflow/instance/detail', query: { id: row.processInstanceId } })
 }
 
 getList()
