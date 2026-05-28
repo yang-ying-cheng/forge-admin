@@ -11,6 +11,7 @@ import com.forge.admin.modules.workflow.dto.definition.ProcessDeployRequest;
 import com.forge.admin.modules.workflow.dto.definition.UserTaskNodeResponse;
 import com.forge.admin.modules.workflow.entity.WfCategory;
 import com.forge.admin.modules.workflow.entity.WfProcessDeployExt;
+import com.forge.admin.modules.workflow.framework.candidate.CandidateStrategyEnum;
 import com.forge.admin.modules.workflow.mapper.WfCategoryMapper;
 import com.forge.admin.modules.workflow.mapper.WfProcessDeployExtMapper;
 import com.forge.admin.modules.workflow.service.WfProcessDefinitionService;
@@ -411,7 +412,8 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
                     try {
                         int strategy = Integer.parseInt(strategyStr);
                         // 34=审批人自选, 35=发起人自选
-                        if (strategy == 34 || strategy == 35) {
+                        if (strategy == CandidateStrategyEnum.APPROVE_USER_SELECT.getCode()
+                                || strategy == CandidateStrategyEnum.START_USER_SELECT.getCode()) {
                             UserTaskNodeResponse node = new UserTaskNodeResponse();
                             node.setTaskDefKey(userTask.getId());
                             node.setTaskName(userTask.getName());
