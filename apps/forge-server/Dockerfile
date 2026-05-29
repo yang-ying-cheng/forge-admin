@@ -3,12 +3,36 @@ FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /build
 
-# 复制 pom.xml 并下载依赖（利用 Docker 缓存）
+# 复制根 POM 和 BOM
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+COPY forge-dependencies/pom.xml forge-dependencies/
 
-# 复制源码并构建
-COPY src ./src
+# 复制 framework 模块 POM 文件
+COPY forge-framework/pom.xml forge-framework/
+COPY forge-framework/forge-common/pom.xml forge-framework/forge-common/
+COPY forge-framework/forge-spring-boot-starter-mybatis/pom.xml forge-framework/forge-spring-boot-starter-mybatis/
+COPY forge-framework/forge-spring-boot-starter-redis/pom.xml forge-framework/forge-spring-boot-starter-redis/
+COPY forge-framework/forge-spring-boot-starter-security/pom.xml forge-framework/forge-spring-boot-starter-security/
+COPY forge-framework/forge-spring-boot-starter-web/pom.xml forge-framework/forge-spring-boot-starter-web/
+
+# 复制 system 模块 POM 文件
+COPY forge-module-system/pom.xml forge-module-system/
+COPY forge-module-system/forge-module-system-api/pom.xml forge-module-system/forge-module-system-api/
+COPY forge-module-system/forge-module-system-biz/pom.xml forge-module-system/forge-module-system-biz/
+
+# 复制 workflow 模块 POM 文件
+COPY forge-module-workflow/pom.xml forge-module-workflow/
+COPY forge-module-workflow/forge-module-workflow-api/pom.xml forge-module-workflow/forge-module-workflow-api/
+COPY forge-module-workflow/forge-module-workflow-biz/pom.xml forge-module-workflow/forge-module-workflow-biz/
+
+# 复制启动模块 POM
+COPY forge-server/pom.xml forge-server/
+
+# 下载依赖（利用 Docker 缓存）
+RUN mvn dependency:go-offline -B 2>/dev/null || true
+
+# 复制全部源码并构建
+COPY . .
 RUN mvn clean package -DskipTests -B
 
 # Stage 2: Runtime
@@ -26,7 +50,7 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 # 从构建阶段复制 JAR 文件
-COPY --from=builder /build/target/*.jar app.jar
+COPY --from=builder /build/forge-server/target/*.jar app.jar
 
 # 设置文件所有权
 RUN chown -R appuser:appgroup /app

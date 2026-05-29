@@ -38,7 +38,6 @@ function parseArgs() {
   const description = args[1]
   const basePackage = args[2]
 
-  // 生成不同格式的标识符
   const nameKebab = projectName
     .replace(/([a-z])([A-Z])/g, '$1-$2')
     .toLowerCase()
@@ -118,7 +117,6 @@ function renamePackageDir(oldPackage, newPackage, srcDir) {
   const newPath = path.join(srcDir, newPackage.replace(/\./g, '/'))
 
   if (!fs.existsSync(oldPath)) {
-    log(`警告: 源包目录不存在: ${oldPath}`, 'yellow')
     return false
   }
 
@@ -132,7 +130,7 @@ function renamePackageDir(oldPackage, newPackage, srcDir) {
   try {
     fs.cpSync(oldPath, newPath, { recursive: true })
     fs.rmSync(oldPath, { recursive: true })
-    log(`  ✓ 重命名包目录: ${oldPackage} -> ${newPackage}`, 'green')
+    log(`  ✓ 重命名包目录: ${oldPackage} -> ${newPackage} (${path.relative(process.cwd(), srcDir)})`, 'green')
     return true
   } catch (error) {
     log(`  ✗ 重命名包目录失败: ${error.message}`, 'red')
@@ -148,7 +146,6 @@ function cleanEmptyDirs(dirPath) {
 
   if (files.length === 0) {
     fs.rmdirSync(dirPath)
-    // 递归清理父目录
     cleanEmptyDirs(path.dirname(dirPath))
   } else {
     files.forEach(file => {
@@ -158,6 +155,36 @@ function cleanEmptyDirs(dirPath) {
       }
     })
   }
+}
+
+// 查找所有 src/main/java 目录
+function findJavaSourceRoots(baseDir) {
+  const results = []
+  const skipDirs = ['node_modules', 'target', 'dist', '.git', '.idea', 'logs', 'uploads', '.claude']
+
+  function walk(dir) {
+    const name = path.basename(dir)
+    if (skipDirs.includes(name)) return
+
+    if (dir.endsWith(path.join('src', 'main', 'java'))) {
+      results.push(dir)
+      return
+    }
+
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          walk(path.join(dir, entry.name))
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  walk(baseDir)
+  return results
 }
 
 // 主函数
@@ -179,24 +206,23 @@ function main() {
   const rootDir = path.resolve(__dirname, '..')
   process.chdir(rootDir)
 
-  // 生成 PascalCase 类名前缀（如 my-admin → MyAdmin）
   const namePascal = config.nameKebab
     .split('-')
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join('')
 
-  // 定义替换规则
+  // 定义替换规则（顺序重要：先匹配长的字符串，避免部分匹配）
   const replacements = [
     // 后端替换
     { from: 'ForgeAdminApplication', to: `${namePascal}Application` },
     { from: 'com.forge.admin', to: config.basePackage },
-    { from: 'forge-admin', to: config.nameKebab },
-    { from: 'forge_admin', to: config.nameSnake },
-    { from: 'forge-admin', to: config.projectName },
-    { from: '聚能后台管理系统', to: config.description },
+    { from: 'com.forge', to: config.basePackage },
     { from: 'forge-admin-backend', to: `${config.nameKebab}-backend` },
     { from: 'forge-admin-frontend', to: `${config.nameKebab}-frontend` },
     { from: 'forge_admin-page-config', to: `${config.nameSnake}-page-config` },
+    { from: 'forge-admin', to: config.nameKebab },
+    { from: 'forge_admin', to: config.nameSnake },
+    { from: '聚能后台管理系统', to: config.description },
     { from: 'forge-server', to: `${config.nameKebab}-server` },
     { from: 'forge-web', to: `${config.nameKebab}-web` },
   ]
@@ -204,7 +230,8 @@ function main() {
   // 需要处理的文件扩展名
   const targetExtensions = [
     '.java', '.xml', '.yml', '.yaml', '.properties',
-    '.vue', '.ts', '.js', '.json', '.html', '.env', '.sql', '.md'
+    '.vue', '.ts', '.js', '.json', '.html', '.env', '.sql', '.md',
+    '.imports'
   ]
 
   log('1. 替换文件内容...', 'yellow')
@@ -223,33 +250,43 @@ function main() {
 
   log(`\n  共替换 ${replacedCount} 个文件\n`)
 
-  // 重命名 Java 包目录
+  // 重命名 Java 包目录（自动扫描所有模块）
   log('2. 重命名 Java 包目录...', 'yellow')
-  const mainJavaDir = 'apps/forge-server/src/main/java'
-  const testJavaDir = 'apps/forge-server/src/test/java'
+  const serverDir = path.join(rootDir, 'apps/forge-server')
+  const javaSourceRoots = findJavaSourceRoots(serverDir)
 
-  renamePackageDir('com.forge.admin', config.basePackage, mainJavaDir)
-  renamePackageDir('com.forge.admin', config.basePackage, testJavaDir)
+  log(`  发现 ${javaSourceRoots.length} 个 Java 源码根目录`, 'cyan')
+
+  // 先尝试 com.forge.admin（兼容旧模板），再尝试 com.forge（当前包名）
+  javaSourceRoots.forEach(javaDir => {
+    if (!renamePackageDir('com.forge', config.basePackage, javaDir)) {
+      renamePackageDir('com.forge.admin', config.basePackage, javaDir)
+    }
+  })
 
   // 清理空目录
-  const oldMainPackagePath = path.join(rootDir, 'apps/forge-server/src/main/java/com/forge/admin')
-  if (fs.existsSync(path.dirname(oldMainPackagePath))) {
-    cleanEmptyDirs(path.dirname(oldMainPackagePath))
-  }
-  const oldTestPackagePath = path.join(rootDir, 'apps/forge-server/src/test/java/com/forge/admin')
-  if (fs.existsSync(path.dirname(oldTestPackagePath))) {
-    cleanEmptyDirs(path.dirname(oldTestPackagePath))
-  }
+  javaSourceRoots.forEach(javaDir => {
+    const oldPackagePath = path.join(javaDir, 'com/forge/admin')
+    if (fs.existsSync(path.dirname(oldPackagePath))) {
+      cleanEmptyDirs(path.dirname(oldPackagePath))
+    }
+    const oldPackagePath2 = path.join(javaDir, 'com/forge')
+    if (fs.existsSync(path.dirname(oldPackagePath2))) {
+      cleanEmptyDirs(path.dirname(oldPackagePath2))
+    }
+  })
 
   // 重命名启动类文件
   log('\n3. 重命名启动类...', 'yellow')
   const newPackagePath = config.basePackage.replace(/\./g, '/')
-  const oldAppFile = path.join(rootDir, `apps/forge-server/src/main/java/${newPackagePath}/ForgeAdminApplication.java`)
-  const newAppFile = path.join(rootDir, `apps/forge-server/src/main/java/${newPackagePath}/${namePascal}Application.java`)
-  if (fs.existsSync(oldAppFile)) {
-    fs.renameSync(oldAppFile, newAppFile)
-    log(`  ✓ ForgeAdminApplication.java -> ${namePascal}Application.java`, 'green')
-  }
+  javaSourceRoots.forEach(javaDir => {
+    const oldAppFile = path.join(javaDir, newPackagePath, 'ForgeAdminApplication.java')
+    if (fs.existsSync(oldAppFile)) {
+      const newAppFile = path.join(javaDir, newPackagePath, `${namePascal}Application.java`)
+      fs.renameSync(oldAppFile, newAppFile)
+      log(`  ✓ ForgeAdminApplication.java -> ${namePascal}Application.java`, 'green')
+    }
+  })
 
   // 重命名应用目录
   log('\n4. 重命名应用目录...', 'yellow')

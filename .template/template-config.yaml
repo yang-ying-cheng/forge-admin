@@ -11,7 +11,7 @@ project:
   # 描述
   description: "聚能后台管理系统"
   # Java 基础包名
-  base_package: "com.forge.admin"
+  base_package: "com.forge"
 
 # 以下为模板变量，初始化脚本会自动替换这些值
 # 请勿直接修改此处的值，而是运行 pnpm run init 命令
@@ -29,27 +29,40 @@ placeholders:
 
 # 需要替换的文件和位置
 replacements:
-  # 后端文件
+  # 后端 - 根聚合 POM
   - path: "apps/forge-server/pom.xml"
     type: "xml"
     replacements:
-      - placeholder: "<groupId>com.forge.admin</groupId>"
+      - placeholder: "<groupId>com.forge</groupId>"
         key: "BASE_PACKAGE"
-      - placeholder: "<artifactId>forge-admin-backend</artifactId>"
+      - placeholder: "<artifactId>forge</artifactId>"
         key: "PROJECT_KEBAB"
-      - placeholder: "<name>forge-admin-backend</name>"
+      - placeholder: "<name>forge</name>"
         key: "PROJECT_KEBAB"
-      - placeholder: "forge-admin - 聚能后台管理系统"
-        key: "PROJECT_DESCRIPTION"
 
-  - path: "apps/forge-server/src/main/resources/application.yml"
+  # 后端 - BOM 版本管理
+  - path: "apps/forge-server/forge-dependencies/pom.xml"
+    type: "xml"
+    replacements:
+      - placeholder: "<groupId>com.forge</groupId>"
+        key: "BASE_PACKAGE"
+
+  # 后端 - 启动模块
+  - path: "apps/forge-server/forge-server/pom.xml"
+    type: "xml"
+    replacements:
+      - placeholder: "com.forge"
+        key: "BASE_PACKAGE"
+
+  # 后端 - 应用配置
+  - path: "apps/forge-server/forge-server/src/main/resources/application.yml"
     type: "yaml"
     replacements:
       - placeholder: "forge-admin"
         key: "PROJECT_KEBAB"
       - placeholder: "forge_admin"
         key: "PROJECT_SNAKE"
-      - placeholder: "com.forge.admin"
+      - placeholder: "com.forge"
         key: "BASE_PACKAGE"
 
   # 前端文件
@@ -101,7 +114,8 @@ instructions: |
      pnpm run init my-admin "我的管理系统" com.mycompany
 
   2. 脚本会自动:
-     - 重命名 Java 包目录
+     - 自动扫描所有 Maven 模块的 Java 源码目录
+     - 重命名 Java 包目录（com.forge -> 自定义包名）
      - 替换所有配置文件中的占位符
      - 更新前端标题和 localStorage keys
      - 更新数据库名

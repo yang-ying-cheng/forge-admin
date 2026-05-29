@@ -63,10 +63,11 @@ pnpm dev
 
 | 原值 | 替换为 | 示例 |
 |------|--------|------|
-| `com.forge.admin` | `{包名}` | `com.mycompany` |
+| `com.forge` | `{包名}` | `com.mycompany` |
+| `ForgeAdminApplication` | `{项目名PascalCase}Application` | `MyAdminApplication` |
+| `forge-admin-backend` | `{项目名-kebab}-backend` | `my-admin-backend` |
 | `forge-admin` | `{项目名-kebab}` | `my-admin` |
 | `forge_admin` | `{项目名-snake}` | `my_admin` |
-| `forge-admin` | `{项目名}` | `MyAdmin` |
 | `聚能后台管理系统` | `{项目描述}` | `我的管理系统` |
 
 ### 前端替换
@@ -83,6 +84,10 @@ pnpm dev
 | 原值 | 替换为 |
 |------|--------|
 | `forge_admin` | `{项目名-snake}` |
+
+### Java 包目录重命名
+
+脚本会自动扫描所有 Maven 模块的 `src/main/java` 目录（共 10 个源码根），将 `com/forge/` 目录重命名为目标包名对应的目录结构。
 
 ## 环境变量配置
 
@@ -204,30 +209,43 @@ docker run -d \
 ```
 my-admin/
 ├── apps/
-│   ├── backend/                    # 后端应用
-│   │   ├── src/main/java/com/mycompany/  # Java 包（已重命名）
-│   │   ├── src/main/resources/
-│   │   │   └── application.yml     # 配置文件（已更新）
-│   │   └── Dockerfile
+│   ├── forge-server/                           # 后端（多模块 Maven 项目）
+│   │   ├── pom.xml                             # 根聚合 POM
+│   │   ├── forge-dependencies/                 # BOM 版本管理
+│   │   ├── forge-framework/                    # 框架层
+│   │   │   ├── forge-common/                   # 公共模块
+│   │   │   ├── forge-spring-boot-starter-mybatis/
+│   │   │   ├── forge-spring-boot-starter-redis/
+│   │   │   ├── forge-spring-boot-starter-security/
+│   │   │   └── forge-spring-boot-starter-web/
+│   │   ├── forge-module-system/                # 系统模块
+│   │   │   ├── forge-module-system-api/        # API 接口 + 实体 + DTO
+│   │   │   └── forge-module-system-biz/        # 业务实现
+│   │   ├── forge-module-workflow/              # 工作流模块
+│   │   │   ├── forge-module-workflow-api/
+│   │   │   └── forge-module-workflow-biz/
+│   │   └── forge-server/                       # Spring Boot 启动入口
+│   │       └── src/main/java/com/mycompany/    # Java 包（已重命名）
+│   │           └── MyAdminApplication.java
 │   │
-│   └── frontend/                   # 前端应用
+│   └── forge-web/                              # 前端应用
 │       ├── src/
-│       │   ├── views/login/        # 登录页（已更新标题）
-│       │   ├── layouts/            # 布局（已更新标题）
-│       │   └── stores/             # 状态管理（已更新 keys）
+│       │   ├── views/login/                    # 登录页（已更新标题）
+│       │   ├── layouts/                        # 布局（已更新标题）
+│       │   └── stores/                         # 状态管理（已更新 keys）
 │       └── Dockerfile
 │
 ├── docker/
 │   └── nginx.conf
 │
 ├── scripts/
-│   └── init-project.js             # 初始化脚本
+│   └── init-project.js                         # 初始化脚本
 │
 ├── sql/
-│   └── init.sql                    # 数据库脚本（已更新数据库名）
+│   └── init.sql                                # 数据库脚本（已更新数据库名）
 │
 ├── .template/
-│   └── template-config.yaml        # 模板配置
+│   └── template-config.yaml                    # 模板配置
 │
 ├── docker-compose.yml
 ├── .env.example
@@ -240,7 +258,7 @@ my-admin/
 ### Q: 初始化后后端启动失败？
 
 检查以下内容：
-1. Java 包目录是否正确重命名
+1. Java 包目录是否正确重命名（所有 10 个模块的 `com/forge/` 都应被替换）
 2. `pom.xml` 中的 groupId 是否正确
 3. 数据库是否已创建
 

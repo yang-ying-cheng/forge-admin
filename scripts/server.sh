@@ -52,7 +52,7 @@ do_start() {
 
     echo -n "正在启动后端服务..."
     cd "$SERVER_DIR"
-    nohup mvn spring-boot:run -Dmaven.test.skip=true > "$LOG_FILE" 2>&1 &
+    nohup mvn spring-boot:run -pl forge-server -Dmaven.test.skip=true > "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
 
     if wait_for_port 90; then
