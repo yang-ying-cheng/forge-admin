@@ -5,6 +5,7 @@
   "description": "企业级后台管理系统模板",
   "scripts": {
     "init": "node scripts/init-project.js",
+    "create-module": "node scripts/create-module.js",
     "dev:frontend": "pnpm --filter forge-admin-frontend dev",
     "dev:backend": "cd apps/forge-server && mvn spring-boot:run",
     "build:frontend": "pnpm --filter forge-admin-frontend build",
