@@ -46,11 +46,11 @@ cp .env.example .env
 # 编辑 .env 文件
 
 # 3. 启动后端
-cd apps/forge-server
+cd apps/my-admin-server
 mvn spring-boot:run
 
 # 4. 启动前端（新终端）
-cd apps/forge-web
+cd apps/my-admin-web
 pnpm install
 pnpm dev
 ```
@@ -65,9 +65,18 @@ pnpm dev
 |------|--------|------|
 | `com.forge` | `{包名}` | `com.mycompany` |
 | `ForgeAdminApplication` | `{项目名PascalCase}Application` | `MyAdminApplication` |
+| `forge-module-workflow-biz` | `{项目名-kebab}-module-workflow-biz` | `my-admin-module-workflow-biz` |
+| `forge-module-workflow-api` | `{项目名-kebab}-module-workflow-api` | `my-admin-module-workflow-api` |
+| `forge-module-system-biz` | `{项目名-kebab}-module-system-biz` | `my-admin-module-system-biz` |
+| `forge-module-system-api` | `{项目名-kebab}-module-system-api` | `my-admin-module-system-api` |
+| `forge-spring-boot-starter-*` | `{项目名-kebab}-spring-boot-starter-*` | `my-admin-spring-boot-starter-mybatis` |
+| `forge-dependencies` | `{项目名-kebab}-dependencies` | `my-admin-dependencies` |
+| `forge-framework` | `{项目名-kebab}-framework` | `my-admin-framework` |
+| `forge-common` | `{项目名-kebab}-common` | `my-admin-common` |
 | `forge-admin` | `{项目名-kebab}` | `my-admin` |
 | `forge_admin` | `{项目名-snake}` | `my_admin` |
 | `聚能后台管理系统` | `{项目描述}` | `我的管理系统` |
+| `forge`（根 artifactId） | `{项目名-kebab}` | `my-admin` |
 
 ### 前端替换
 
@@ -87,6 +96,18 @@ pnpm dev
 ### Java 包目录重命名
 
 脚本会自动扫描所有 Maven 模块的 `src/main/java` 目录（共 10 个源码根），将 `com/forge/` 目录重命名为目标包名对应的目录结构。
+
+### Maven 子模块目录重命名
+
+脚本会由深到浅重命名后端所有子模块目录，包括：
+- `forge-framework/` 下的 starter 和 common 子目录
+- `forge-module-system/` 和 `forge-module-workflow/` 下的 api、biz 子目录
+- `forge-dependencies/`、`forge-framework/`、`forge-module-*` 等中层目录
+- `forge-server/` 内部启动模块目录
+
+### Dockerfile 路径替换
+
+脚本支持无扩展名文件（如 `Dockerfile`）的内容替换，确保 Docker 构建路径与重命名后的目录一致。
 
 ## 环境变量配置
 
@@ -173,11 +194,11 @@ docker-compose down
 
 ```bash
 # 构建后端镜像
-cd apps/forge-server
+cd apps/my-admin-server
 docker build -t my-admin-backend .
 
 # 构建前端镜像
-cd apps/forge-web
+cd apps/my-admin-web
 docker build -t my-admin-frontend .
 ```
 
@@ -208,43 +229,43 @@ docker run -d \
 ```
 my-admin/
 ├── apps/
-│   ├── forge-server/                           # 后端（多模块 Maven 项目）
-│   │   ├── pom.xml                             # 根聚合 POM
-│   │   ├── forge-dependencies/                 # BOM 版本管理
-│   │   ├── forge-framework/                    # 框架层
-│   │   │   ├── forge-common/                   # 公共模块
-│   │   │   ├── forge-spring-boot-starter-mybatis/
-│   │   │   ├── forge-spring-boot-starter-redis/
-│   │   │   ├── forge-spring-boot-starter-security/
-│   │   │   └── forge-spring-boot-starter-web/
-│   │   ├── forge-module-system/                # 系统模块
-│   │   │   ├── forge-module-system-api/        # API 接口 + 实体 + DTO
-│   │   │   └── forge-module-system-biz/        # 业务实现
-│   │   ├── forge-module-workflow/              # 工作流模块
-│   │   │   ├── forge-module-workflow-api/
-│   │   │   └── forge-module-workflow-biz/
-│   │   └── forge-server/                       # Spring Boot 启动入口
-│   │       └── src/main/java/com/mycompany/    # Java 包（已重命名）
+│   ├── my-admin-server/                            # 后端（多模块 Maven 项目）
+│   │   ├── pom.xml                                # 根聚合 POM
+│   │   ├── my-admin-dependencies/                 # BOM 版本管理
+│   │   ├── my-admin-framework/                    # 框架层
+│   │   │   ├── my-admin-common/                   # 公共模块
+│   │   │   ├── my-admin-spring-boot-starter-mybatis/
+│   │   │   ├── my-admin-spring-boot-starter-redis/
+│   │   │   ├── my-admin-spring-boot-starter-security/
+│   │   │   └── my-admin-spring-boot-starter-web/
+│   │   ├── my-admin-module-system/                # 系统模块
+│   │   │   ├── my-admin-module-system-api/        # API 接口 + 实体 + DTO
+│   │   │   └── my-admin-module-system-biz/        # 业务实现
+│   │   ├── my-admin-module-workflow/              # 工作流模块
+│   │   │   ├── my-admin-module-workflow-api/
+│   │   │   └── my-admin-module-workflow-biz/
+│   │   └── my-admin-server/                       # Spring Boot 启动入口
+│   │       └── src/main/java/com/mycompany/       # Java 包（已重命名）
 │   │           └── MyAdminApplication.java
 │   │
-│   └── forge-web/                              # 前端应用
+│   └── my-admin-web/                              # 前端应用
 │       ├── src/
-│       │   ├── views/login/                    # 登录页（已更新标题）
-│       │   ├── layouts/                        # 布局（已更新标题）
-│       │   └── stores/                         # 状态管理（已更新 keys）
+│       │   ├── views/login/                       # 登录页（已更新标题）
+│       │   ├── layouts/                           # 布局（已更新标题）
+│       │   └── stores/                            # 状态管理（已更新 keys）
 │       └── Dockerfile
 │
 ├── docker/
 │   └── nginx.conf
 │
 ├── scripts/
-│   └── init-project.js                         # 初始化脚本
+│   └── init-project.js                            # 初始化脚本
 │
 ├── sql/
-│   └── init.sql                                # 数据库脚本（已更新数据库名）
+│   └── init.sql                                   # 数据库脚本（已更新数据库名）
 │
 ├── .template/
-│   └── template-config.yaml                    # 模板配置
+│   └── template-config.yaml                       # 模板配置
 │
 ├── docker-compose.yml
 ├── .env.example
