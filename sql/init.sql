@@ -37,7 +37,7 @@ CREATE TABLE `sys_attachment` (
   KEY `idx_biz` (`biz_type`,`biz_id`),
   KEY `idx_uploader` (`uploader_id`),
   KEY `idx_create_time` (`create_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统附件表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统附件表';
 
 -- ========================================
 -- 2. 系统配置表
@@ -58,7 +58,7 @@ CREATE TABLE `sys_config` (
   `deleted` tinyint DEFAULT '0' COMMENT '删除标记',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_config_key` (`config_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统配置表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
 
 -- ========================================
 -- 3. 部门表
@@ -79,7 +79,7 @@ CREATE TABLE `sys_dept` (
   `deleted` tinyint DEFAULT '0' COMMENT '删除标记',
   PRIMARY KEY (`id`),
   KEY `idx_parent_id` (`parent_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='部门表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='部门表';
 
 -- ========================================
 -- 4. 字典数据表
@@ -100,7 +100,7 @@ CREATE TABLE `sys_dict_data` (
   `deleted` tinyint DEFAULT '0' COMMENT '删除标记',
   PRIMARY KEY (`id`),
   KEY `idx_dict_type` (`dict_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='字典数据表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='字典数据表';
 
 -- ========================================
 -- 5. 字典类型表
@@ -118,7 +118,7 @@ CREATE TABLE `sys_dict_type` (
   `deleted` tinyint DEFAULT '0' COMMENT '删除标记',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_dict_type` (`dict_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='字典类型表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='字典类型表';
 
 -- ========================================
 -- 6. 文件存储配置表
@@ -141,7 +141,7 @@ CREATE TABLE `sys_file_config` (
   `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` tinyint DEFAULT '0' COMMENT '删除标记',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='文件存储配置表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文件存储配置表';
 
 -- ========================================
 -- 7. 定时任务表
@@ -171,7 +171,7 @@ CREATE TABLE `sys_job` (
   `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_job_group` (`job_group`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='定时任务表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='定时任务表';
 
 -- ========================================
 -- 8. 任务执行日志表
@@ -193,7 +193,7 @@ CREATE TABLE `sys_job_log` (
   PRIMARY KEY (`id`),
   KEY `idx_job_id` (`job_id`),
   KEY `idx_create_time` (`create_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='任务执行日志表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务执行日志表';
 
 -- ========================================
 -- 9. 登录日志表
@@ -212,7 +212,7 @@ CREATE TABLE `sys_login_log` (
   PRIMARY KEY (`id`),
   KEY `idx_username` (`username`),
   KEY `idx_login_time` (`login_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='登录日志表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录日志表';
 
 -- ========================================
 -- 10. 菜单表
@@ -238,7 +238,7 @@ CREATE TABLE `sys_menu` (
   `deleted` tinyint DEFAULT '0' COMMENT '删除标记',
   PRIMARY KEY (`id`),
   KEY `idx_parent_id` (`parent_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='菜单表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='菜单表';
 
 -- ========================================
 -- 11. 通知公告表
@@ -258,7 +258,7 @@ CREATE TABLE `sys_notice` (
   KEY `idx_notice_type` (`notice_type`),
   KEY `idx_status` (`status`),
   KEY `idx_create_time` (`create_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='通知公告表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='通知公告表';
 
 -- ========================================
 -- 12. 操作日志表
@@ -284,7 +284,7 @@ CREATE TABLE `sys_operation_log` (
   PRIMARY KEY (`id`),
   KEY `idx_operator` (`operator_id`),
   KEY `idx_operate_time` (`operate_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='操作日志表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='操作日志表';
 
 -- ========================================
 -- 13. 岗位表
@@ -302,7 +302,7 @@ CREATE TABLE `sys_position` (
   `deleted` tinyint DEFAULT '0' COMMENT '删除标记',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_position_code` (`position_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='岗位表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='岗位表';
 
 -- ========================================
 -- 14. 角色表
@@ -322,7 +322,7 @@ CREATE TABLE `sys_role` (
   `deleted` tinyint DEFAULT '0' COMMENT '删除标记',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_role_code` (`role_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色表';
 
 -- ========================================
 -- 15. 角色部门关联表
@@ -337,7 +337,7 @@ CREATE TABLE `sys_role_dept` (
   UNIQUE KEY `uk_role_dept` (`role_id`,`dept_id`),
   KEY `idx_role_id` (`role_id`),
   KEY `idx_dept_id` (`dept_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色部门关联表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色部门关联表';
 
 -- ========================================
 -- 16. 角色菜单关联表
@@ -349,7 +349,7 @@ CREATE TABLE `sys_role_menu` (
   `menu_id` bigint NOT NULL COMMENT '菜单ID',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_role_menu` (`role_id`,`menu_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色菜单关联表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色菜单关联表';
 
 -- ========================================
 -- 17. 用户表
@@ -376,7 +376,7 @@ CREATE TABLE `sys_user` (
   UNIQUE KEY `uk_username` (`username`),
   KEY `idx_dept_id` (`dept_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- ========================================
 -- 18. 用户角色关联表
@@ -388,10 +388,22 @@ CREATE TABLE `sys_user_role` (
   `role_id` bigint NOT NULL COMMENT '角色ID',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_role` (`user_id`,`role_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户角色关联表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户角色关联表';
 
 -- ========================================
--- 19. 社交账号绑定表
+-- 19. 用户岗位关联表
+-- ========================================
+DROP TABLE IF EXISTS `sys_user_position`;
+CREATE TABLE `sys_user_position` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `position_id` bigint NOT NULL COMMENT '岗位ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_position` (`user_id`,`position_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户岗位关联表';
+
+-- ========================================
+-- 20. 社交账号绑定表
 -- ========================================
 DROP TABLE IF EXISTS `sys_social_user`;
 CREATE TABLE `sys_social_user` (
@@ -417,10 +429,10 @@ CREATE TABLE `sys_social_user` (
   UNIQUE KEY `uk_source_openid` (`source`, `open_id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_union_id` (`union_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='社交账号绑定表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='社交账号绑定表';
 
 -- ========================================
--- 20. OAuth2 注册客户端表
+-- 21. OAuth2 注册客户端表
 -- ========================================
 DROP TABLE IF EXISTS `oauth2_registered_client`;
 CREATE TABLE `oauth2_registered_client` (
@@ -439,10 +451,10 @@ CREATE TABLE `oauth2_registered_client` (
   `token_settings` varchar(2000) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_client_id` (`client_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='OAuth2注册客户端';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OAuth2注册客户端';
 
 -- ========================================
--- 21. OAuth2 授权信息表
+-- 22. OAuth2 授权信息表
 -- ========================================
 DROP TABLE IF EXISTS `oauth2_authorization`;
 CREATE TABLE `oauth2_authorization` (
@@ -482,10 +494,10 @@ CREATE TABLE `oauth2_authorization` (
   PRIMARY KEY (`id`),
   KEY `idx_registered_client_id` (`registered_client_id`),
   KEY `idx_principal_name` (`principal_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='OAuth2授权信息';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OAuth2授权信息';
 
 -- ========================================
--- 22. OAuth2 授权同意表
+-- 23. OAuth2 授权同意表
 -- ========================================
 DROP TABLE IF EXISTS `oauth2_authorization_consent`;
 CREATE TABLE `oauth2_authorization_consent` (
@@ -493,10 +505,10 @@ CREATE TABLE `oauth2_authorization_consent` (
   `principal_name` varchar(200) NOT NULL,
   `authorities` varchar(1000) NOT NULL,
   PRIMARY KEY (`registered_client_id`, `principal_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='OAuth2授权同意';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OAuth2授权同意';
 
 -- ========================================
--- 23. 序列号生成规则表
+-- 24. 序列号生成规则表
 -- ========================================
 DROP TABLE IF EXISTS `sys_key_sequence`;
 CREATE TABLE `sys_key_sequence` (
@@ -513,7 +525,7 @@ CREATE TABLE `sys_key_sequence` (
   `deleted` tinyint DEFAULT 0 COMMENT '删除标记',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_key_category` (`key_category`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='序列号生成规则';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='序列号生成规则';
 
 -- ========================================
 -- 初始化数据

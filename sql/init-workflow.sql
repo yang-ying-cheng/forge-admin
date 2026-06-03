@@ -30,7 +30,7 @@ CREATE TABLE `wf_category` (
   `deleted` tinyint DEFAULT 0 COMMENT '删除标记',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_category_code` (`category_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='流程分类表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='流程分类表';
 
 -- ========================================
 -- 2. 流程部署扩展表
@@ -58,7 +58,7 @@ CREATE TABLE `wf_process_deploy_ext` (
   PRIMARY KEY (`id`),
   KEY `idx_deployment_id` (`deployment_id`),
   KEY `idx_process_key` (`process_key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='流程部署扩展表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='流程部署扩展表';
 
 -- ========================================
 -- 3. 审批意见表
@@ -79,7 +79,7 @@ CREATE TABLE `wf_approval_comment` (
   PRIMARY KEY (`id`),
   KEY `idx_process_instance` (`process_instance_id`),
   KEY `idx_task_id` (`task_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='审批意见表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='审批意见表';
 
 -- ========================================
 -- 4. 工作流表单管理表
@@ -98,7 +98,7 @@ CREATE TABLE `wf_form` (
     `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `deleted` tinyint DEFAULT 0 COMMENT '逻辑删除',
     PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='工作流表单';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工作流表单';
 
 -- ========================================
 -- 5. 流程表达式管理
@@ -116,7 +116,7 @@ CREATE TABLE `wf_process_expression` (
     `update_by` bigint DEFAULT NULL COMMENT '更新人',
     `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '删除标记',
     PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程表达式';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='流程表达式';
 
 -- ========================================
 -- 6. 流程监听器管理
@@ -137,7 +137,7 @@ CREATE TABLE `wf_process_listener` (
     `update_by` bigint DEFAULT NULL COMMENT '更新人',
     `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '删除标记',
     PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程监听器';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='流程监听器';
 
 -- ========================================
 -- 7. 流程抄送记录表
@@ -161,7 +161,7 @@ CREATE TABLE `wf_process_instance_copy` (
     PRIMARY KEY (`id`),
     KEY `idx_process_instance_id` (`process_instance_id`),
     KEY `idx_user_id` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='流程抄送记录';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='流程抄送记录';
 
 -- ========================================
 -- 工作流模块菜单
@@ -315,10 +315,6 @@ INSERT INTO `sys_dict_data` (`id`, `dict_type`, `dict_label`, `dict_value`, `dic
 (2210, 'wf_action_type', '取消',   'cancel',       10, 1, 'danger'),
 (2211, 'wf_action_type', '加签',   'sign_create',  11, 1, 'primary'),
 (2212, 'wf_action_type', '减签',   'sign_delete',  12, 1, 'primary');
-
--- 流程编号序列种子数据
-INSERT INTO `sys_key_sequence` (`key_category`, `key_prefix`, `date_rule`, `seq_length`, `remark`) VALUES
-('process_no', 'WF', 'yyyyMMdd', 4, '流程编号');
 
 SET FOREIGN_KEY_CHECKS = 1;
 
