@@ -108,14 +108,16 @@ replacements:
 instructions: |
   使用方法:
   1. 运行初始化脚本创建新项目:
-     pnpm run init <项目名称> "<项目描述>" <包名>
+     pnpm run init <项目名称> "<项目描述>" <包名> <模块前缀>
 
   示例:
-     pnpm run init my-admin "我的管理系统" com.mycompany
+     pnpm run init my-admin "我的管理系统" com.mycompany mycompany
 
   2. 脚本会自动:
      - 自动扫描所有 Maven 模块的 Java 源码目录
      - 重命名 Java 包目录（com.forge -> 自定义包名）
+     - 重命名 Java 子模块目录（forge-framework -> <模块前缀>-framework）
      - 替换所有配置文件中的占位符
      - 更新前端标题和 localStorage keys
      - 更新数据库名
+     - 重命名根目录

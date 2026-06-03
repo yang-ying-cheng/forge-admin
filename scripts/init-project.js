@@ -4,8 +4,8 @@
  * 项目初始化脚本
  * 用于基于 forge-admin 模板创建新项目
  *
- * 使用方法: pnpm run init <项目名称> "<项目描述>" <包名>
- * 示例: pnpm run init my-admin "我的管理系统" com.mycompany
+ * 使用方法: pnpm run init <项目名称> "<项目描述>" <包名> <模块前缀>
+ * 示例: pnpm run init lead-ai "营销管理系统" com.lead lead
  */
 
 const fs = require('fs')
@@ -28,15 +28,16 @@ function log(message, color = 'reset') {
 function parseArgs() {
   const args = process.argv.slice(2)
 
-  if (args.length < 3) {
-    log('使用方法: pnpm run init <项目名称> "<项目描述>" <包名>', 'yellow')
-    log('示例: pnpm run init my-admin "我的管理系统" com.mycompany', 'cyan')
+  if (args.length < 4) {
+    log('使用方法: pnpm run init <项目名称> "<项目描述>" <包名> <模块前缀>', 'yellow')
+    log('示例: pnpm run init lead-ai "营销管理系统" com.lead lead', 'cyan')
     process.exit(1)
   }
 
   const projectName = args[0]
   const description = args[1]
   const basePackage = args[2]
+  const modulePrefix = args[3]
 
   const nameKebab = projectName
     .replace(/([a-z])([A-Z])/g, '$1-$2')
@@ -49,6 +50,7 @@ function parseArgs() {
     projectName,
     description,
     basePackage,
+    modulePrefix,
     nameKebab,
     nameSnake
   }
@@ -187,6 +189,38 @@ function findJavaSourceRoots(baseDir) {
   return results
 }
 
+// 重命名 Java 子模块目录（最深优先，自底向上）
+function renameJavaModules(serverDir, oldPrefix, newPrefix, rootDir) {
+  const skipDirs = ['node_modules', 'target', 'dist', '.git', '.idea', 'logs', 'uploads', '.claude']
+  const renames = []
+
+  function collectRenames(dir) {
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory() || skipDirs.includes(entry.name)) continue
+        if (entry.name.startsWith(oldPrefix + '-')) {
+          const oldPath = path.join(dir, entry.name)
+          // 先收集子目录（深度优先），确保从最深层的目录开始重命名
+          collectRenames(oldPath)
+          renames.push({ from: oldPath, to: path.join(dir, entry.name.replace(oldPrefix, newPrefix)) })
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  collectRenames(serverDir)
+
+  renames.forEach(({ from, to }) => {
+    if (fs.existsSync(from)) {
+      fs.renameSync(from, to)
+      log(`  ✓ ${path.relative(rootDir, from)} -> ${path.relative(rootDir, to)}`, 'green')
+    }
+  })
+}
+
 // 主函数
 function main() {
   log('\n========================================', 'cyan')
@@ -200,6 +234,7 @@ function main() {
   log(`  项目名称: ${config.projectName}`)
   log(`  项目描述: ${config.description}`)
   log(`  包名: ${config.basePackage}`)
+  log(`  模块前缀: ${config.modulePrefix}`)
   log(`  标识符 (kebab): ${config.nameKebab}`)
   log(`  标识符 (snake): ${config.nameSnake}\n`)
 
@@ -211,6 +246,8 @@ function main() {
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join('')
 
+  const javaPrefix = config.modulePrefix
+
   // 定义替换规则（顺序重要：先匹配长的字符串，避免部分匹配）
   const replacements = [
     // 后端替换
@@ -218,27 +255,40 @@ function main() {
     { from: 'com.forge.admin', to: config.basePackage },
     { from: 'com.forge', to: config.basePackage },
     { from: 'forge_admin-page-config', to: `${config.nameSnake}-page-config` },
-    // Maven 子模块（长名优先）
-    { from: 'forge-module-workflow-biz', to: `${config.nameKebab}-module-workflow-biz` },
-    { from: 'forge-module-workflow-api', to: `${config.nameKebab}-module-workflow-api` },
-    { from: 'forge-module-workflow', to: `${config.nameKebab}-module-workflow` },
-    { from: 'forge-module-system-biz', to: `${config.nameKebab}-module-system-biz` },
-    { from: 'forge-module-system-api', to: `${config.nameKebab}-module-system-api` },
-    { from: 'forge-module-system', to: `${config.nameKebab}-module-system` },
-    { from: 'forge-spring-boot-starter-mybatis', to: `${config.nameKebab}-spring-boot-starter-mybatis` },
-    { from: 'forge-spring-boot-starter-redis', to: `${config.nameKebab}-spring-boot-starter-redis` },
-    { from: 'forge-spring-boot-starter-security', to: `${config.nameKebab}-spring-boot-starter-security` },
-    { from: 'forge-spring-boot-starter-web', to: `${config.nameKebab}-spring-boot-starter-web` },
-    { from: 'forge-dependencies', to: `${config.nameKebab}-dependencies` },
-    { from: 'forge-framework', to: `${config.nameKebab}-framework` },
-    { from: 'forge-common', to: `${config.nameKebab}-common` },
+
+    // Java 模块名（使用 javaPrefix，长的先匹配）
+    { from: 'forge-spring-boot-starter-mybatis', to: `${javaPrefix}-spring-boot-starter-mybatis` },
+    { from: 'forge-spring-boot-starter-redis', to: `${javaPrefix}-spring-boot-starter-redis` },
+    { from: 'forge-spring-boot-starter-security', to: `${javaPrefix}-spring-boot-starter-security` },
+    { from: 'forge-spring-boot-starter-web', to: `${javaPrefix}-spring-boot-starter-web` },
+    { from: 'forge-module-system-api', to: `${javaPrefix}-module-system-api` },
+    { from: 'forge-module-system-biz', to: `${javaPrefix}-module-system-biz` },
+    { from: 'forge-module-system', to: `${javaPrefix}-module-system` },
+    { from: 'forge-module-workflow-api', to: `${javaPrefix}-module-workflow-api` },
+    { from: 'forge-module-workflow-biz', to: `${javaPrefix}-module-workflow-biz` },
+    { from: 'forge-module-workflow', to: `${javaPrefix}-module-workflow` },
+    { from: 'forge-dependencies', to: `${javaPrefix}-dependencies` },
+    { from: 'forge-framework', to: `${javaPrefix}-framework` },
+    { from: 'forge-common', to: `${javaPrefix}-common` },
+
+    // 通用引用
     { from: 'forge-admin', to: config.nameKebab },
     { from: 'forge_admin', to: config.nameSnake },
     { from: '聚能后台管理系统', to: config.description },
-    { from: 'forge-server', to: `${config.nameKebab}-server` },
-    { from: 'forge-web', to: `${config.nameKebab}-web` },
-    // 根 artifactId（必须在所有 forge-* 之后）
-    { from: 'forge', to: config.nameKebab },
+
+    // Maven 模块及目录引用（使用 javaPrefix）
+    { from: 'forge-server', to: `${javaPrefix}-server` },
+    { from: 'forge-web', to: `${javaPrefix}-web` },
+
+    // Maven 根 artifactId/name（XML 标签内容中的独立模块前缀）
+    { from: '>forge<', to: `>${javaPrefix}<` },
+
+    // Maven 版本属性名
+    { from: 'forge.version', to: `${javaPrefix}.version` },
+
+    // Spring YAML 配置键及属性引用
+    { from: '${forge.', to: `\${${javaPrefix}.` },
+    { from: '\nforge:', to: `\n${javaPrefix}:` },
   ]
 
   // 需要处理的文件扩展名
@@ -305,11 +355,15 @@ function main() {
     }
   })
 
+  // 重命名 Java 子模块目录（在外层目录重命名之前执行）
+  log('\n4. 重命名 Java 子模块目录...', 'yellow')
+  renameJavaModules(serverDir, 'forge', javaPrefix, rootDir)
+
   // 重命名应用目录
-  log('\n4. 重命名应用目录...', 'yellow')
+  log('\n5. 重命名应用目录...', 'yellow')
   const dirRenames = [
-    { from: 'forge-server', to: `${config.nameKebab}-server` },
-    { from: 'forge-web', to: `${config.nameKebab}-web` },
+    { from: 'forge-server', to: `${javaPrefix}-server` },
+    { from: 'forge-web', to: `${javaPrefix}-web` },
   ]
   dirRenames.forEach(({ from, to }) => {
     const oldDir = path.join(rootDir, 'apps', from)
@@ -320,49 +374,27 @@ function main() {
     }
   })
 
-  // 重命名后端子模块目录（由深到浅）
-  log('\n4.5. 重命名后端子模块目录...', 'yellow')
-  const renamedServerDir = path.join(rootDir, 'apps', `${config.nameKebab}-server`)
-  if (fs.existsSync(renamedServerDir)) {
-    const submoduleRenames = [
-      // forge-framework 子目录（深层优先）
-      { from: 'forge-framework/forge-common', to: `forge-framework/${config.nameKebab}-common` },
-      { from: 'forge-framework/forge-spring-boot-starter-mybatis', to: `forge-framework/${config.nameKebab}-spring-boot-starter-mybatis` },
-      { from: 'forge-framework/forge-spring-boot-starter-redis', to: `forge-framework/${config.nameKebab}-spring-boot-starter-redis` },
-      { from: 'forge-framework/forge-spring-boot-starter-security', to: `forge-framework/${config.nameKebab}-spring-boot-starter-security` },
-      { from: 'forge-framework/forge-spring-boot-starter-web', to: `forge-framework/${config.nameKebab}-spring-boot-starter-web` },
-      // forge-module-system 子目录
-      { from: 'forge-module-system/forge-module-system-api', to: `forge-module-system/${config.nameKebab}-module-system-api` },
-      { from: 'forge-module-system/forge-module-system-biz', to: `forge-module-system/${config.nameKebab}-module-system-biz` },
-      // forge-module-workflow 子目录
-      { from: 'forge-module-workflow/forge-module-workflow-api', to: `forge-module-workflow/${config.nameKebab}-module-workflow-api` },
-      { from: 'forge-module-workflow/forge-module-workflow-biz', to: `forge-module-workflow/${config.nameKebab}-module-workflow-biz` },
-      // 中层目录
-      { from: 'forge-framework', to: `${config.nameKebab}-framework` },
-      { from: 'forge-module-system', to: `${config.nameKebab}-module-system` },
-      { from: 'forge-module-workflow', to: `${config.nameKebab}-module-workflow` },
-      { from: 'forge-dependencies', to: `${config.nameKebab}-dependencies` },
-      // 内部 forge-server 模块（启动入口）
-      { from: 'forge-server', to: `${config.nameKebab}-server` },
-    ]
-    submoduleRenames.forEach(({ from, to }) => {
-      const oldDir = path.join(renamedServerDir, from)
-      const newDir = path.join(renamedServerDir, to)
-      if (fs.existsSync(oldDir) && from !== to) {
-        fs.renameSync(oldDir, newDir)
-        log(`  ✓ ${from} -> ${to}`, 'green')
-      }
-    })
-  }
-
   // 更新数据库初始化脚本
-  log('\n5. 更新数据库脚本...', 'yellow')
+  log('\n6. 更新数据库脚本...', 'yellow')
   const sqlFile = path.join(rootDir, 'sql/init.sql')
   if (fs.existsSync(sqlFile)) {
     replaceInFile(sqlFile, [
       { from: 'forge_admin', to: config.nameSnake }
     ])
     log('  ✓ 更新 sql/init.sql', 'green')
+  }
+
+  // 重命名根目录（最后执行）
+  log('\n7. 重命名根目录...', 'yellow')
+  const currentDirName = path.basename(rootDir)
+  const newRootDirName = config.nameKebab
+  if (currentDirName !== newRootDirName) {
+    const parentDir = path.dirname(rootDir)
+    const newRootDir = path.join(parentDir, newRootDirName)
+    fs.renameSync(rootDir, newRootDir)
+    log(`  ✓ ${currentDirName} -> ${newRootDirName}`, 'green')
+  } else {
+    log('  - 根目录名称已是目标名称，跳过', 'cyan')
   }
 
   log('\n========================================', 'cyan')
@@ -372,8 +404,8 @@ function main() {
   log('后续步骤:', 'yellow')
   log('  1. 创建数据库: mysql -u root -p < sql/init.sql')
   log('  2. 更新 .env 文件中的配置')
-  log(`  3. 启动后端: cd apps/${config.nameKebab}-server && mvn spring-boot:run`)
-  log(`  4. 启动前端: cd apps/${config.nameKebab}-web && pnpm dev`)
+  log(`  3. 启动后端: cd apps/${javaPrefix}-server && mvn spring-boot:run`)
+  log(`  4. 启动前端: cd apps/${javaPrefix}-web && pnpm dev`)
   log('')
 }
 
