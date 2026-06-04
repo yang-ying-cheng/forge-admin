@@ -1,7 +1,6 @@
 <template>
   <div ref="containerRef" class="dict-data-container" style="height: 100%">
-    <!-- 搜索栏 -->
-    <!-- 桌面端搜索表单 -->
+    <!-- 搜索栏（桌面端） -->
     <el-form v-if="!isMobile" :model="queryParams" inline class="search-form">
       <el-form-item label="字典标签">
         <el-input v-model="queryParams.dictLabel" placeholder="请输入字典标签" clearable />
@@ -27,7 +26,7 @@
       <span class="title">字典数据</span>
       <div class="actions">
         <MobileSearchButton :badge-count="activeConditionsCount" @click="searchDrawerVisible = true" />
-        <el-button type="primary" @click="handleAdd">
+        <el-button type="primary" @click="handleMobileAdd">
           <el-icon><Plus /></el-icon>
         </el-button>
       </div>
@@ -52,120 +51,78 @@
       </template>
     </MobileSearchDrawer>
 
-    <!-- vxe-toolbar 工具栏（桌面端） -->
-    <vxe-toolbar v-if="!isMobile" ref="toolbarRef" >
+    <!-- 工具栏 -->
+    <vxe-toolbar v-if="!isMobile" ref="toolbarRef" custom>
       <template #buttons>
-        <el-button type="primary" @click="handleAdd">新增数据</el-button>
+        <el-button type="primary" @click="handleAddRow">新增数据</el-button>
+        <el-button type="danger" :disabled="!hasCheckedRows" @click="handleDeleteRows">删除勾选</el-button>
+        <el-button type="success" :disabled="!hasChanges" @click="handleBatchSave">保存修改</el-button>
       </template>
       <template #tools>
         <vxe-button circle icon="vxe-icon-repeat" style="margin-right: 10px" @click="handleReset"></vxe-button>
       </template>
     </vxe-toolbar>
 
-    <!-- vxe-table 表格 -->
+    <!-- 可编辑表格 -->
     <vxe-table
       ref="tableRef"
       id="sysDictDataTable"
-      :custom-config="{mode: 'modal'}"
+      keep-source
+      border="none"
+      stripe
+      show-overflow="tooltip"
+      show-header-overflow="tooltip"
+      :custom-config="{ mode: 'modal' }"
       :data="tableData"
       :height="tableHeight"
       :loading="loading"
       :row-config="{ isCurrent: true, isHover: true }"
       :column-config="{ resizable: true }"
-      border="none"
-      stripe
-      show-overflow="tooltip"
-      show-header-overflow="tooltip"
-      @current-change="handleCurrentChange"
+      :keyboard-config="{}"
+      :checkbox-config="{ reserve: true }"
+      :mouse-config="{}"
+      :edit-config="{}"
+      :edit-rules="validRules"
+      @edit-closed="onEditClosed"
     >
-      <!-- 序号列（桌面端） -->
+      <!-- 勾选列 -->
+      <vxe-column v-if="!isMobile" type="checkbox" width="40" align="center" />
+      <!-- 序号列 -->
       <vxe-column v-if="!isMobile" type="seq" title="序号" width="50" align="center" />
 
       <!-- 字典标签 -->
-      <vxe-column field="dictLabel" title="字典标签" width="150" />
+      <vxe-column field="dictLabel" title="字典标签" min-width="140"  align="center" :edit-render="{autoFocus: true}">
+        <template #edit="{ row }">
+          <el-input v-model="row.dictLabel" placeholder="请输入字典标签"  size="small" />
+        </template>
+      </vxe-column>
 
       <!-- 字典值 -->
-      <vxe-column field="dictValue" title="字典值" width="120" />
+      <vxe-column field="dictValue" title="字典值" min-width="120" align="center" :edit-render="{autoFocus: true}">
+        <template #edit="{ row }">
+          <el-input v-model="row.dictValue" placeholder="请输入字典值" size="small"  style="width: 100%" />
+        </template>
+      </vxe-column>
 
-      <!-- 排序（桌面端） -->
-      <vxe-column v-if="!isMobile" field="dictSort" title="排序" width="70" align="center" />
+      <!-- 排序 -->
+      <vxe-column field="dictSort" title="排序" width="80" align="center" :edit-render="{autoFocus: true}">
+        <template #edit="{ row }">
+          <el-input-number v-model="row.dictSort" :min="0" :max="999" size="small" style="width: 100%" :controls="false"  controls-position="right"/>
+        </template>
+      </vxe-column>
 
       <!-- CSS样式（桌面端） -->
-      <vxe-column v-if="!isMobile" title="CSS样式" width="120" align="center">
+      <vxe-column v-if="!isMobile" field="cssClass" title="CSS样式" width="140" align="center" :edit-render="{autoFocus: true}">
         <template #default="{ row }">
           <span v-if="row.cssClass" class="dict-value-container">
-            <el-tag
-              :type="getCssClassTagType(row.cssClass)"
-              :class="row.cssClass || undefined"
-              size="small"
-            >
+            <el-tag :type="getCssClassTagType(row.cssClass)" :class="row.cssClass || undefined" size="small">
               {{ row.cssClass }}
             </el-tag>
           </span>
           <span v-else style="color: var(--el-text-color-secondary);">-</span>
         </template>
-      </vxe-column>
-
-      <!-- 表格样式（桌面端） -->
-      <vxe-column v-if="!isMobile" title="表格样式" width="100" align="center">
-        <template #default="{ row }">
-          <dict-value v-if="row.listClass" :dict-type="DICT_TYPE.SYS_TAG_TYPE" :value="row.listClass" />
-        </template>
-      </vxe-column>
-
-      <!-- 状态 -->
-      <vxe-column title="状态" width="70" align="center">
-        <template #default="{ row }">
-          <dict-value :dict-type="DICT_TYPE.SYS_NORMAL_DISABLE" :value="row.status" />
-        </template>
-      </vxe-column>
-
-      <!-- 备注（桌面端） -->
-      <vxe-column v-if="!isMobile" field="remark" title="备注" min-width="120" />
-
-      <!-- 创建时间（桌面端） -->
-      <vxe-column v-if="!isMobile" field="createTime" title="创建时间" width="150" align="center">
-        <template #default="{ row }">
-          {{ formatDateTime(row.createTime) }}
-        </template>
-      </vxe-column>
-
-      <!-- 桌面端操作列 -->
-      <vxe-column v-if="!isMobile" title="操作" width="100" fixed="right">
-        <template #default="{ row }">
-          <el-button type="primary" link size="small" @click.stop="handleEdit(row)">编辑</el-button>
-          <el-button type="danger" link size="small" @click.stop="handleDelete(row)">删除</el-button>
-        </template>
-      </vxe-column>
-    </vxe-table>
-
-    <!-- 移动端底部操作栏 -->
-    <MobileBottomActions
-      :show="!!selectedRow"
-      :item="selectedRow"
-      :item-title="selectedRow?.dictLabel"
-      @cancel="cancelSelection"
-    >
-      <template #actions="{ item }">
-        <el-button size="small" type="primary" @click.stop="handleEdit(item)">编辑</el-button>
-        <el-button size="small" type="danger" @click.stop="handleDelete(item)">删除</el-button>
-      </template>
-    </MobileBottomActions>
-
-    <!-- 对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px" class="dialog-form-responsive">
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px">
-        <el-form-item label="字典标签" prop="dictLabel">
-          <el-input v-model="formData.dictLabel" placeholder="请输入字典标签" />
-        </el-form-item>
-        <el-form-item label="字典值" prop="dictValue">
-          <el-input v-model="formData.dictValue" placeholder="请输入字典值" />
-        </el-form-item>
-        <el-form-item label="排序" prop="dictSort">
-          <el-input-number v-model="formData.dictSort" :min="0" :max="999" />
-        </el-form-item>
-        <el-form-item label="CSS样式">
-          <el-select v-model="formData.cssClass" placeholder="请选择CSS样式" clearable style="width: 100%" :teleported="false" popper-class="css-class-popper">
+        <template #edit="{ row }">
+          <el-select v-model="row.cssClass" placeholder="请选择" clearable style="width: 100%" :teleported="false" popper-class="css-class-popper vxe-table--ignore-clear">
             <el-option
               v-for="item in cssClassOptions"
               :key="item.value"
@@ -178,9 +135,17 @@
               </span>
             </el-option>
           </el-select>
-        </el-form-item>
-        <el-form-item label="表格样式">
-          <el-select v-model="formData.listClass" placeholder="请选择表格样式" clearable style="width: 100%">
+        </template>
+      </vxe-column>
+
+      <!-- 表格样式（桌面端） -->
+      <vxe-column v-if="!isMobile" field="listClass" title="表格样式" width="120" align="center" :edit-render="{}">
+        <template #default="{ row }">
+          <dict-value v-if="row.listClass" :dict-type="DICT_TYPE.SYS_TAG_TYPE" :value="row.listClass" />
+          <span v-else style="color: var(--el-text-color-secondary);">-</span>
+        </template>
+        <template #edit="{ row }">
+          <el-select v-model="row.listClass" placeholder="请选择" clearable style="width: 100%" popper-class="vxe-table--ignore-clear">
             <el-option
               v-for="item in tagTypeOptions"
               :key="item.dictValue"
@@ -188,9 +153,75 @@
               :value="item.dictValue"
             />
           </el-select>
+        </template>
+      </vxe-column>
+
+      <!-- 状态 -->
+      <vxe-column field="status" title="状态" width="90" align="center" :edit-render="{}">
+        <template #default="{ row }">
+          <dict-value :dict-type="DICT_TYPE.SYS_NORMAL_DISABLE" :value="row.status" />
+        </template>
+        <template #edit="{ row }">
+          <el-select v-model="row.status" style="width: 100%" popper-class="vxe-table--ignore-clear">
+            <el-option
+              v-for="item in statusOptions"
+              :key="item.dictValue"
+              :label="item.dictLabel"
+              :value="Number(item.dictValue)"
+            />
+          </el-select>
+        </template>
+      </vxe-column>
+
+      <!-- 备注 -->
+      <vxe-column field="remark" title="备注" min-width="140" :edit-render="{autoFocus: true}">
+        <template #edit="{ row }">
+          <el-input v-model="row.remark" placeholder="请输入备注" />
+        </template>
+      </vxe-column>
+
+      <!-- 创建时间（桌面端，不可编辑） -->
+      <vxe-column v-if="!isMobile" field="createTime" title="创建时间" width="150" align="center">
+        <template #default="{ row }">
+          {{ formatDateTime(row.createTime) }}
+        </template>
+      </vxe-column>
+
+      <!-- 移动端操作列 -->
+      <vxe-column v-if="isMobile" title="操作" width="80" fixed="right">
+        <template #default="{ row }">
+          <el-button type="danger" link size="small" @click.stop="handleDeleteRow(row)">删除</el-button>
+        </template>
+      </vxe-column>
+    </vxe-table>
+
+    <!-- 移动端底部操作栏 -->
+    <MobileBottomActions
+      :show="isMobile && hasChanges"
+      :item="null"
+      item-title=""
+      @cancel="handleCancelChanges"
+    >
+      <template #actions>
+        <el-button size="small" @click="handleCancelChanges">取消修改</el-button>
+        <el-button size="small" type="success" @click="handleBatchSave">保存修改</el-button>
+      </template>
+    </MobileBottomActions>
+
+    <!-- 移动端新增弹窗 -->
+    <el-dialog v-model="addDialogVisible" title="新增字典数据" width="90%" class="dialog-form-responsive">
+      <el-form ref="addFormRef" :model="addFormData" :rules="addFormRules" label-width="80px">
+        <el-form-item label="字典标签" prop="dictLabel">
+          <el-input v-model="addFormData.dictLabel" placeholder="请输入字典标签" />
+        </el-form-item>
+        <el-form-item label="字典值" prop="dictValue">
+          <el-input v-model="addFormData.dictValue" placeholder="请输入字典值" />
+        </el-form-item>
+        <el-form-item label="排序">
+          <el-input-number v-model="addFormData.dictSort" :min="0" :max="999" style="width: 100%" />
         </el-form-item>
         <el-form-item label="状态">
-          <el-radio-group v-model="formData.status">
+          <el-radio-group v-model="addFormData.status">
             <el-radio
               v-for="item in statusOptions"
               :key="item.dictValue"
@@ -201,12 +232,12 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="formData.remark" type="textarea" :rows="2" placeholder="请输入备注" />
+          <el-input v-model="addFormData.remark" type="textarea" :rows="2" placeholder="请输入备注" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
+        <el-button @click="addDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleMobileAddSubmit">确定</el-button>
       </template>
     </el-dialog>
   </div>
@@ -218,7 +249,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { VxeTableInstance, VxeToolbarInstance } from 'vxe-table'
 import { Plus } from '@element-plus/icons-vue'
-import { getDictDataList, addDictData, updateDictData, deleteDictData } from '@/api/system'
+import { getDictDataList, batchSaveDictData } from '@/api/system'
 import type { DictData } from '@/types/system'
 import { formatDateTime } from '@/utils/dateFormat'
 import { useResponsive } from '@/composables/useResponsive'
@@ -235,14 +266,12 @@ const { dictData: tagTypeOptions } = useDict(DICT_TYPE.SYS_TAG_TYPE)
 
 // CSS 样式选项
 const cssClassOptions = [
-  // 基础色
   { label: '默认', value: 'default', tagType: 'info' },
   { label: '主要', value: 'primary', tagType: 'primary' },
   { label: '成功', value: 'success', tagType: 'success' },
   { label: '信息', value: 'info', tagType: 'info' },
   { label: '警告', value: 'warning', tagType: 'warning' },
   { label: '危险', value: 'danger', tagType: 'danger' },
-  // 扩展色
   { label: '青色', value: 'cyan', tagType: 'primary' },
   { label: '紫色', value: 'purple', tagType: 'primary' },
   { label: '橙色', value: 'orange', tagType: 'warning' },
@@ -251,7 +280,6 @@ const cssClassOptions = [
   { label: '棕色', value: 'brown', tagType: 'warning' },
   { label: '灰色', value: 'grey', tagType: 'info' },
   { label: '青柠', value: 'lime', tagType: 'success' },
-  // 圆角
   { label: '圆角-主要', value: 'primary-round', tagType: 'primary' },
   { label: '圆角-成功', value: 'success-round', tagType: 'success' },
   { label: '圆角-警告', value: 'warning-round', tagType: 'warning' },
@@ -260,7 +288,6 @@ const cssClassOptions = [
   { label: '圆角-紫色', value: 'purple-round', tagType: 'primary' },
   { label: '圆角-橙色', value: 'orange-round', tagType: 'warning' },
   { label: '圆角-粉色', value: 'pink-round', tagType: 'danger' },
-  // 纯文本色（无背景）
   { label: '文本-主要', value: 'text-primary', tagType: 'primary' },
   { label: '文本-成功', value: 'text-success', tagType: 'success' },
   { label: '文本-警告', value: 'text-warning', tagType: 'warning' },
@@ -269,7 +296,6 @@ const cssClassOptions = [
   { label: '文本-紫色', value: 'text-purple', tagType: 'primary' },
   { label: '文本-橙色', value: 'text-orange', tagType: 'warning' },
   { label: '文本-粉色', value: 'text-pink', tagType: 'danger' },
-  // 粗体
   { label: '粗体-主要', value: 'bold-primary', tagType: 'primary' },
   { label: '粗体-成功', value: 'bold-success', tagType: 'success' },
   { label: '粗体-警告', value: 'bold-warning', tagType: 'warning' },
@@ -278,7 +304,6 @@ const cssClassOptions = [
   { label: '粗体-紫色', value: 'bold-purple', tagType: 'primary' },
   { label: '粗体-橙色', value: 'bold-orange', tagType: 'warning' },
   { label: '粗体-粉色', value: 'bold-pink', tagType: 'danger' },
-  // 大号
   { label: '大号-主要', value: 'large-primary', tagType: 'primary' },
   { label: '大号-成功', value: 'large-success', tagType: 'success' },
   { label: '大号-警告', value: 'large-warning', tagType: 'warning' },
@@ -289,7 +314,6 @@ const cssClassOptions = [
   { label: '大号-粉色', value: 'large-pink', tagType: 'danger' },
 ]
 
-// 根据 cssClass 值查找对应的 tagType
 const cssClassMap = new Map(cssClassOptions.map(opt => [opt.value, opt.tagType]))
 const getCssClassTagType = (cssClass: string) => cssClassMap.get(cssClass) || 'info'
 
@@ -299,23 +323,21 @@ const props = defineProps<{
 
 const { isMobile } = useResponsive()
 
-// 表格高度自适应（基于容器高度）
 const containerRef = ref<HTMLElement>()
 const { tableHeight } = useDrawerTableHeight({
   containerRef,
   excludeSelectors: ['.search-form', '.vxe-toolbar', '.mobile-search-actions'],
 })
 
-// 表格实例
 const tableRef = ref<VxeTableInstance | null>(null)
 const toolbarRef = ref<VxeToolbarInstance | null>(null)
 
 const loading = ref(false)
 const tableData = ref<DictData[]>([])
+const dirty = ref(false)
 
 // 移动端状态
 const searchDrawerVisible = ref(false)
-const selectedRow = ref<DictData | null>(null)
 
 const queryParams = reactive({
   dictType: '',
@@ -323,7 +345,6 @@ const queryParams = reactive({
   status: undefined as number | undefined
 })
 
-// 计算激活的搜索条件数量
 const activeConditionsCount = computed(() => {
   let count = 0
   if (queryParams.dictLabel) count++
@@ -331,29 +352,19 @@ const activeConditionsCount = computed(() => {
   return count
 })
 
-const dialogVisible = ref(false)
-const dialogTitle = ref('')
-const isEdit = ref(false)
-const submitLoading = ref(false)
-const formRef = ref<FormInstance>()
-const formData = reactive({
-  id: undefined as number | undefined,
-  dictType: '',
-  dictLabel: '',
-  dictValue: '',
-  dictSort: 0,
-  cssClass: '',
-  listClass: '',
-  status: 1,
-  remark: ''
+const hasCheckedRows = computed(() => {
+  if (!tableRef.value) return false
+  return tableRef.value.getCheckboxRecords().length > 0
 })
 
-const formRules: FormRules = {
-  dictLabel: [{ required: true, message: '请输入字典标签', trigger: 'blur' }],
-  dictValue: [{ required: true, message: '请输入字典值', trigger: 'blur' }]
+const hasChanges = computed(() => dirty.value)
+
+// 编辑校验规则
+const validRules = {
+  dictLabel: [{ required: true, message: '请输入字典标签' }],
+  dictValue: [{ required: true, message: '请输入字典值' }],
 }
 
-// 关联工具栏与表格
 onMounted(() => {
   if (tableRef.value && toolbarRef.value) {
     tableRef.value.connect(toolbarRef.value)
@@ -366,14 +377,13 @@ const getList = async () => {
   try {
     const res = await getDictDataList({ ...queryParams, pageNum: 1, pageSize: 9999 })
     tableData.value = res.list
+    dirty.value = false
   } finally {
     loading.value = false
   }
 }
 
-const handleQuery = () => {
-  getList()
-}
+const handleQuery = () => getList()
 
 const handleReset = () => {
   queryParams.dictLabel = ''
@@ -381,103 +391,127 @@ const handleReset = () => {
   getList()
 }
 
-// 移动端抽屉搜索
-const handleSearchFromDrawer = () => {
-  getList()
-}
+const handleSearchFromDrawer = () => getList()
+const handleResetFromDrawer = () => handleReset()
 
-// 移动端抽屉重置
-const handleResetFromDrawer = () => {
-  handleReset()
-}
-
-const handleAdd = () => {
-  cancelSelection()
-  isEdit.value = false
-  dialogTitle.value = '新增字典数据'
-  Object.assign(formData, {
-    id: undefined,
+const handleAddRow = () => {
+  const newRow: DictData = {
+    id: undefined as any,
     dictType: props.dictType,
     dictLabel: '',
     dictValue: '',
-    dictSort: 0,
+    dictSort: tableData.value.length,
     cssClass: '',
     listClass: '',
     status: 1,
-    remark: ''
+    remark: '',
+    createTime: '',
+  }
+  tableData.value.push(newRow)
+  dirty.value = true
+  nextTick(() => {
+    tableRef.value?.setEditRow(newRow, 'dictLabel')
   })
-  dialogVisible.value = true
 }
 
-const handleEdit = (row: DictData) => {
-  cancelSelection()
-  isEdit.value = true
-  dialogTitle.value = '编辑字典数据'
-  Object.assign(formData, row)
-  dialogVisible.value = true
+// 移动端新增弹窗
+const addDialogVisible = ref(false)
+const addFormRef = ref<FormInstance>()
+const addFormData = reactive({
+  dictLabel: '',
+  dictValue: '',
+  dictSort: 0,
+  status: 1,
+  remark: '',
+})
+const addFormRules: FormRules = {
+  dictLabel: [{ required: true, message: '请输入字典标签', trigger: 'blur' }],
+  dictValue: [{ required: true, message: '请输入字典值', trigger: 'blur' }],
 }
 
-const handleSubmit = async () => {
-  if (!formRef.value) return
-  await formRef.value.validate()
-  submitLoading.value = true
+const handleMobileAdd = () => {
+  Object.assign(addFormData, { dictLabel: '', dictValue: '', dictSort: tableData.value.length, status: 1, remark: '' })
+  addDialogVisible.value = true
+}
+
+const handleMobileAddSubmit = async () => {
+  if (!addFormRef.value) return
+  await addFormRef.value.validate()
+  tableData.value.push({
+    id: undefined as any,
+    dictType: props.dictType,
+    dictLabel: addFormData.dictLabel,
+    dictValue: addFormData.dictValue,
+    dictSort: addFormData.dictSort,
+    cssClass: '',
+    listClass: '',
+    status: addFormData.status,
+    remark: addFormData.remark,
+    createTime: '',
+  })
+  dirty.value = true
+  addDialogVisible.value = false
+}
+
+const handleDeleteRows = async () => {
+  if (!tableRef.value) return
+  const checkedRows = tableRef.value.getCheckboxRecords()
+  if (checkedRows.length === 0) return
+
   try {
-    if (isEdit.value) {
-      await updateDictData({
-        id: formData.id!,
-        dictType: formData.dictType,
-        dictLabel: formData.dictLabel,
-        dictValue: formData.dictValue,
-        dictSort: formData.dictSort,
-        cssClass: formData.cssClass,
-        listClass: formData.listClass,
-        status: formData.status,
-        remark: formData.remark
-      })
-      ElMessage.success('更新成功')
-    } else {
-      await addDictData({
-        dictType: formData.dictType,
-        dictLabel: formData.dictLabel,
-        dictValue: formData.dictValue,
-        dictSort: formData.dictSort,
-        cssClass: formData.cssClass,
-        listClass: formData.listClass,
-        status: formData.status,
-        remark: formData.remark
-      })
-      ElMessage.success('新增成功')
-    }
-    dialogVisible.value = false
+    await ElMessageBox.confirm(`确定删除选中的 ${checkedRows.length} 条数据?`, '警告', { type: 'warning' })
+    tableRef.value.removeCheckboxRow()
+    tableData.value = tableData.value.filter(item => !checkedRows.includes(item))
+    dirty.value = true
+  } catch {}
+}
+
+const handleDeleteRow = async (row: DictData) => {
+  try {
+    await ElMessageBox.confirm(`确定删除 "${row.dictLabel}"?`, '警告', { type: 'warning' })
+    tableData.value = tableData.value.filter(item => item !== row)
+    dirty.value = true
+  } catch {}
+}
+
+const handleBatchSave = async () => {
+  if (!tableRef.value) return
+
+  const errMap = await tableRef.value.validate(true).catch(() => true)
+  if (errMap) {
+    ElMessage.error('请填写必填字段')
+    return
+  }
+
+  loading.value = true
+  try {
+    await batchSaveDictData({
+      dictType: props.dictType,
+      dataList: tableData.value.map(row => ({
+        id: row.id && row.id > 0 ? row.id : undefined,
+        dictType: props.dictType,
+        dictLabel: row.dictLabel,
+        dictValue: row.dictValue,
+        dictSort: row.dictSort,
+        cssClass: row.cssClass,
+        listClass: row.listClass,
+        status: row.status,
+        remark: row.remark,
+      })),
+    })
+    ElMessage.success('保存成功')
     getList()
   } finally {
-    submitLoading.value = false
+    loading.value = false
   }
 }
 
-const handleDelete = async (row: DictData) => {
-  try {
-    await ElMessageBox.confirm(`确定删除字典数据 "${row.dictLabel}"?`, '警告', { type: 'warning' })
-    await deleteDictData([row.id])
-    ElMessage.success('删除成功')
-    cancelSelection()
-    getList()
-  } catch (e) {}
+const handleCancelChanges = () => {
+  getList()
 }
 
-// 当前行变化（移动端选中）
-const handleCurrentChange = ({ row }: { row: DictData | null }) => {
-  if (isMobile.value) {
-    selectedRow.value = row
-  }
-}
-
-// 取消选择
-const cancelSelection = () => {
-  selectedRow.value = null
-  if (tableRef.value) {
-    tableRef.value.clearCurrentRow()
-  }
+const onEditClosed = () => {
+  dirty.value = true
 }
 
 watch(
@@ -511,8 +545,9 @@ html.dark .dict-value-container {
 </style>
 
 <style lang="scss">
-// CSS样式下拉框面板高度
 .css-class-popper .el-select-dropdown__wrap {
   max-height: 420px;
+  width: 250px;
+  text-align: left;
 }
 </style>

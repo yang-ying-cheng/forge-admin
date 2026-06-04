@@ -40,11 +40,13 @@ public class SysDictData {
     /**
      * 样式属性
      */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String cssClass;
 
     /**
      * 表格回显样式
      */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String listClass;
 
     /**
@@ -55,6 +57,7 @@ public class SysDictData {
     /**
      * 备注
      */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String remark;
 
     /**

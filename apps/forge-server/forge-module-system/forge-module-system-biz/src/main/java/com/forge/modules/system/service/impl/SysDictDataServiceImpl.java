@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.forge.common.exception.BusinessException;
+import com.forge.modules.system.dto.dict.DictDataBatchSaveRequest;
 import com.forge.modules.system.dto.dict.DictDataQueryRequest;
 import com.forge.modules.system.dto.dict.DictDataRequest;
 import com.forge.modules.system.dto.dict.DictDataResponse;
@@ -21,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -126,5 +129,49 @@ public class SysDictDataServiceImpl extends ServiceImpl<SysDictDataMapper, SysDi
         DictDataResponse response = new DictDataResponse();
         BeanUtil.copyProperties(dictData, response);
         return response;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = "dictData", allEntries = true)
+    public void batchSaveDictData(DictDataBatchSaveRequest request) {
+        // 查询该 dictType 下所有现有数据的 id
+        List<Long> existIds = lambdaQuery()
+                .eq(SysDictData::getDictType, request.getDictType())
+                .select(SysDictData::getId)
+                .list()
+                .stream()
+                .map(SysDictData::getId)
+                .toList();
+
+        // 收集前端传来的有效 id
+        Set<Long> submittedIds = new HashSet<>();
+        if (request.getDataList() != null) {
+            for (DictDataRequest item : request.getDataList()) {
+                item.setDictType(request.getDictType());
+                if (item.getId() != null) {
+                    submittedIds.add(item.getId());
+                    // id 存在则更新
+                    SysDictData dictData = getById(item.getId());
+                    if (dictData != null) {
+                        BeanUtil.copyProperties(item, dictData);
+                        updateById(dictData);
+                    }
+                } else {
+                    // id 不存在则新增
+                    SysDictData dictData = new SysDictData();
+                    BeanUtil.copyProperties(item, dictData);
+                    save(dictData);
+                }
+            }
+        }
+
+        // 数据库中存在但前端没有传的，说明已被删除
+        List<Long> toDeleteIds = existIds.stream()
+                .filter(id -> !submittedIds.contains(id))
+                .collect(Collectors.toList());
+        if (!toDeleteIds.isEmpty()) {
+            removeByIds(toDeleteIds);
+        }
     }
 }

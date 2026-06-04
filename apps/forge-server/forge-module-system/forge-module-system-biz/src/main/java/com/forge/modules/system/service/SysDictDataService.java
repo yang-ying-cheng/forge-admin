@@ -1,6 +1,7 @@
 package com.forge.modules.system.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.forge.modules.system.dto.dict.DictDataBatchSaveRequest;
 import com.forge.modules.system.dto.dict.DictDataQueryRequest;
 import com.forge.modules.system.dto.dict.DictDataRequest;
 import com.forge.modules.system.dto.dict.DictDataResponse;
@@ -27,4 +28,6 @@ public interface SysDictDataService {
     void updateStatus(Long id, Integer status);
 
     void refreshCache();
+
+    void batchSaveDictData(DictDataBatchSaveRequest request);
 }

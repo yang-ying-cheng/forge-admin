@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.forge.framework.web.annotation.OperationLog;
 import com.forge.common.response.PageResult;
 import com.forge.common.response.Result;
+import com.forge.modules.system.dto.dict.DictDataBatchSaveRequest;
 import com.forge.modules.system.dto.dict.DictDataQueryRequest;
 import com.forge.modules.system.dto.dict.DictDataRequest;
 import com.forge.modules.system.dto.dict.DictDataResponse;
@@ -85,6 +86,15 @@ public class SysDictDataController {
     @OperationLog(title = "字典数据管理", businessType = OperationLog.BusinessType.UPDATE)
     public Result<Void> updateStatus(@PathVariable Long id, @RequestParam Integer status) {
         sysDictDataService.updateStatus(id, status);
+        return Result.success();
+    }
+
+    @Operation(summary = "批量保存字典数据")
+    @PostMapping("/batch-save")
+    @PreAuthorize("hasAuthority('system:dict:edit')")
+    @OperationLog(title = "字典数据管理", businessType = OperationLog.BusinessType.UPDATE)
+    public Result<Void> batchSave(@Valid @RequestBody DictDataBatchSaveRequest request) {
+        sysDictDataService.batchSaveDictData(request);
         return Result.success();
     }
 }

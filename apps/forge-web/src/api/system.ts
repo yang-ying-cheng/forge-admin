@@ -264,6 +264,15 @@ export function deleteDictData(ids: number[]) {
   return request.delete(`/system/dict-data/${ids.join(',')}`)
 }
 
+export interface DictDataBatchSaveRequest {
+  dictType: string
+  dataList: Array<Partial<DictData>>
+}
+
+export function batchSaveDictData(data: DictDataBatchSaveRequest) {
+  return request.post('/system/dict-data/batch-save', data)
+}
+
 // ==================== 系统配置 ====================
 
 export function getConfigList(params: ConfigQuery) {
