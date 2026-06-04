@@ -79,7 +79,8 @@ public class SecurityConfig {
             "/ws/**",
             "/ws/info/**",
             "/topic/**",
-            "/app/**"
+            "/app/**",
+            "/error"
     };
 
     @Bean
