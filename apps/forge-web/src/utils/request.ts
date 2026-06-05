@@ -77,7 +77,6 @@ const onRefreshFailed = (errorMessage?: string) => {
   // 通知所有等待的请求失败
   subscribers.forEach((cb) => {
     try {
-      // 传入空字符串表示失败
       cb('')
     } catch (e) {
       console.error('Error notifying refresh failed:', e)
@@ -93,7 +92,7 @@ const onRefreshFailed = (errorMessage?: string) => {
   // 显示错误提示
   ElMessage.error(errorMessage || '登录已过期，请重新登录')
 
-  // 执行登出和跳转（完整清理状态，避免重新登录后菜单/路由异常）
+  // 执行登出和跳转
   const userStore = useUserStore()
   const permissionStore = usePermissionStore()
   const tabsStore = useTabsStore()
@@ -101,7 +100,6 @@ const onRefreshFailed = (errorMessage?: string) => {
     permissionStore.resetRoutes()
     tabsStore.clearAllTabs()
     resetRouter()
-    isHandlingExpired = false
     router.push('/login')
   })
 }
@@ -115,6 +113,10 @@ const service: AxiosInstance = axios.create({
 // 请求拦截器
 service.interceptors.request.use(
   (config) => {
+    // 如果正在处理登录过期，直接拒绝新请求
+    if (isHandlingExpired) {
+      return Promise.reject(new Error('登录已过期'))
+    }
     const userStore = useUserStore()
     if (userStore.token) {
       config.headers.Authorization = `Bearer ${userStore.token}`
@@ -139,7 +141,7 @@ service.interceptors.response.use(
 
     // code 不是 200 则为错误
     if (res.code !== 200) {
-      if (isSilent) {
+      if (isSilent || isHandlingExpired) {
         return Promise.reject(new Error(res.message || '请求失败'))
       }
       // 401: 未登录或 Token 过期
@@ -164,7 +166,7 @@ service.interceptors.response.use(
 
     // 静默请求 401 不触发自动刷新，由调用方自行处理
     if (error.response?.status === 401) {
-      if (isSilent) {
+      if (isSilent || isHandlingExpired) {
         return Promise.reject(error)
       }
       return handleTokenExpired(error)
@@ -215,7 +217,6 @@ const handleTokenExpired = (error: any, errorMessage?: string) => {
         permissionStore.resetRoutes()
         tabsStore.clearAllTabs()
         resetRouter()
-        isHandlingExpired = false
         router.push('/login')
       })
     }
@@ -318,6 +319,12 @@ export const request = {
   delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<Result<T>> {
     return service.delete(url, config)
   }
+}
+
+// 重置登录过期状态（登录成功后调用）
+export const resetExpiredState = () => {
+  isHandlingExpired = false
+  isRefreshing = false
 }
 
 export default service

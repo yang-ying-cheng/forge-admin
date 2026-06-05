@@ -6,6 +6,7 @@ import type { LoginRequest, UserInfo } from '@/types/auth'
 import type { MenuTree } from '@/types/system'
 import { usePermissionStore } from '@/stores/permission'
 import { useTabsStore } from '@/stores/tabs'
+import { resetExpiredState } from '@/utils/request'
 import router, { resetRouter } from '@/router'
 
 // 心跳间隔：2分钟
@@ -85,6 +86,7 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('token', res.accessToken)
     localStorage.setItem('refreshToken', res.refreshToken)
     setTokenExpireTime(res.expiresIn)
+    resetExpiredState()
     // 登录成功后启动心跳
     startHeartbeat()
     return res
