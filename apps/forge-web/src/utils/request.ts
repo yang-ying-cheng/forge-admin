@@ -135,9 +135,13 @@ service.interceptors.response.use(
     }
 
     const res = response.data
+    const isSilent = (response.config as any).silent
 
     // code 不是 200 则为错误
     if (res.code !== 200) {
+      if (isSilent) {
+        return Promise.reject(new Error(res.message || '请求失败'))
+      }
       // 401: 未登录或 Token 过期
       if (res.code === 401) {
         return handleTokenExpired(null, res.message)
@@ -156,33 +160,40 @@ service.interceptors.response.use(
     return res as any
   },
   (error) => {
-    // 401 错误特殊处理 - 尝试刷新 Token
+    const isSilent = (error.config as any)?.silent
+
+    // 静默请求 401 不触发自动刷新，由调用方自行处理
     if (error.response?.status === 401) {
+      if (isSilent) {
+        return Promise.reject(error)
+      }
       return handleTokenExpired(error)
     }
 
-    let message = '请求失败'
-    if (error.response) {
-      switch (error.response.status) {
-        case 403:
-          message = '没有相关权限'
-          break
-        case 404:
-          message = '资源不存在'
-          break
-        case 500:
-          message = '服务器错误'
-          break
-        default:
-          message = error.response.data?.message || '请求失败'
+    if (!isSilent) {
+      let message = '请求失败'
+      if (error.response) {
+        switch (error.response.status) {
+          case 403:
+            message = '没有相关权限'
+            break
+          case 404:
+            message = '资源不存在'
+            break
+          case 500:
+            message = '服务器错误'
+            break
+          default:
+            message = error.response.data?.message || '请求失败'
+        }
+      } else if (error.message.includes('timeout')) {
+        message = '请求超时'
+      } else if (error.message.includes('Network')) {
+        message = '网络错误'
       }
-    } else if (error.message.includes('timeout')) {
-      message = '请求超时'
-    } else if (error.message.includes('Network')) {
-      message = '网络错误'
-    }
 
-    ElMessage.error(message)
+      ElMessage.error(message)
+    }
     return Promise.reject(error)
   }
 )
@@ -255,6 +266,9 @@ const handleTokenExpired = (error: any, errorMessage?: string) => {
           // 更新 Token
           userStore.updateToken(newToken)
           userStore.updateRefreshToken(newRefreshToken)
+          if (res.data.expiresIn) {
+            userStore.setTokenExpireTime(res.data.expiresIn)
+          }
 
           // 执行等待队列中的请求
           onRefreshed(newToken)

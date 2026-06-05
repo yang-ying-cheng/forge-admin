@@ -7,9 +7,9 @@ export function login(data: LoginRequest) {
   return request.post<LoginResponse>('/auth/login', data).then(res => res.data)
 }
 
-// 刷新 Token
+// 刷新 Token（静默模式，避免 401 时触发拦截器的自动刷新循环）
 export function refreshToken(data: RefreshTokenRequest) {
-  return request.post<LoginResponse>('/auth/refresh', data).then(res => res.data)
+  return request.post<LoginResponse>('/auth/refresh', data, { silent: true } as any).then(res => res.data)
 }
 
 // 获取用户信息
@@ -22,9 +22,9 @@ export function getUserMenus() {
   return request.get<MenuTree[]>('/auth/menus').then(res => res.data)
 }
 
-// 心跳接口
+// 心跳接口（静默模式，401 不触发自动刷新/登出）
 export function heartbeat() {
-  return request.post('/auth/heartbeat')
+  return request.post('/auth/heartbeat', undefined, { silent: true } as any)
 }
 
 // 退出登录

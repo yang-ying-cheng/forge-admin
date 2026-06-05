@@ -1,29 +1,70 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { login, getUserInfo, getUserMenus, logout, refreshToken, heartbeat } from '@/api/auth'
 import type { LoginRequest, UserInfo } from '@/types/auth'
 import type { MenuTree } from '@/types/system'
+import { usePermissionStore } from '@/stores/permission'
+import { useTabsStore } from '@/stores/tabs'
+import router, { resetRouter } from '@/router'
 
 // 心跳间隔：2分钟
 const HEARTBEAT_INTERVAL = 2 * 60 * 1000
+// Token 过期前提前刷新的阈值：5分钟
+const TOKEN_REFRESH_THRESHOLD = 5 * 60 * 1000
 
 export const useUserStore = defineStore('user', () => {
   const token = ref<string>(localStorage.getItem('token') || '')
   const refreshTokenValue = ref<string>(localStorage.getItem('refreshToken') || '')
+  const tokenExpireTime = ref<number>(Number(localStorage.getItem('tokenExpireTime')) || 0)
   const userInfo = ref<UserInfo | null>(null)
   const menus = ref<MenuTree[]>([])
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  let isRefreshingToken = false
+
+  const setTokenExpireTime = (expiresIn: number) => {
+    const expireAt = Date.now() + expiresIn * 1000
+    tokenExpireTime.value = expireAt
+    localStorage.setItem('tokenExpireTime', String(expireAt))
+  }
+
+  // Token 是否即将过期（剩余时间 < 阈值）
+  const isTokenExpiringSoon = () => {
+    return tokenExpireTime.value > 0 && Date.now() > tokenExpireTime.value - TOKEN_REFRESH_THRESHOLD
+  }
 
   // 启动心跳定时器
   const startHeartbeat = () => {
     stopHeartbeat()
     heartbeatTimer = setInterval(async () => {
-      if (token.value) {
+      if (!token.value) return
+
+      // Token 即将过期，主动刷新
+      if (isTokenExpiringSoon() && !isRefreshingToken) {
+        isRefreshingToken = true
         try {
-          await heartbeat()
+          await refreshTokenAction()
         } catch {
-          // 忽略心跳失败
+          // 刷新失败，执行登出
+          ElMessage.error('登录已过期，请重新登录')
+          const permissionStore = usePermissionStore()
+          const tabsStore = useTabsStore()
+          logoutAction().finally(() => {
+            permissionStore.resetRoutes()
+            tabsStore.clearAllTabs()
+            resetRouter()
+            router.push('/login')
+          })
+          return
+        } finally {
+          isRefreshingToken = false
         }
+      }
+
+      try {
+        await heartbeat()
+      } catch {
+        // 心跳失败静默忽略
       }
     }, HEARTBEAT_INTERVAL)
   }
@@ -43,6 +84,7 @@ export const useUserStore = defineStore('user', () => {
     refreshTokenValue.value = res.refreshToken
     localStorage.setItem('token', res.accessToken)
     localStorage.setItem('refreshToken', res.refreshToken)
+    setTokenExpireTime(res.expiresIn)
     // 登录成功后启动心跳
     startHeartbeat()
     return res
@@ -59,6 +101,7 @@ export const useUserStore = defineStore('user', () => {
     refreshTokenValue.value = res.refreshToken
     localStorage.setItem('token', res.accessToken)
     localStorage.setItem('refreshToken', res.refreshToken)
+    setTokenExpireTime(res.expiresIn)
     return res
   }
 
@@ -99,10 +142,12 @@ export const useUserStore = defineStore('user', () => {
       stopHeartbeat()
       token.value = ''
       refreshTokenValue.value = ''
+      tokenExpireTime.value = 0
       userInfo.value = null
       menus.value = []
       localStorage.removeItem('token')
       localStorage.removeItem('refreshToken')
+      localStorage.removeItem('tokenExpireTime')
     }
   }
 
@@ -127,6 +172,7 @@ export const useUserStore = defineStore('user', () => {
     refreshTokenAction,
     updateToken,
     updateRefreshToken,
+    setTokenExpireTime,
     getUserInfoAction,
     getMenusAction,
     logoutAction,
