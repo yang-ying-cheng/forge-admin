@@ -278,4 +278,14 @@ export const resetExpiredState = () => {
   refreshPromise = null
 }
 
+// 获取共享刷新 Promise（心跳等外部调用方使用）
+export const getSharedRefreshPromise = (): Promise<string> | null => {
+  return refreshPromise
+}
+
+// 触发共享刷新（心跳等外部调用方使用）
+export const triggerRefresh = (): Promise<string> => {
+  return getRefreshPromise()
+}
+
 export default service

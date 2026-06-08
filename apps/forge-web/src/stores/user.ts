@@ -1,13 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
 import { login, getUserInfo, getUserMenus, logout, heartbeat } from '@/api/auth'
 import type { LoginRequest, UserInfo } from '@/types/auth'
 import type { MenuTree } from '@/types/system'
 import { usePermissionStore } from '@/stores/permission'
 import { useTabsStore } from '@/stores/tabs'
-import { resetExpiredState } from '@/utils/request'
+import { resetExpiredState, triggerRefresh } from '@/utils/request'
 import router, { resetRouter } from '@/router'
 
 // 心跳间隔：2分钟
@@ -71,11 +70,11 @@ export const useUserStore = defineStore('user', () => {
     heartbeatTimer = setInterval(async () => {
       if (!token.value) return
 
-      // Token 即将过期，主动刷新（用原始 axios 避免拦截器循环）
+      // Token 即将过期，主动刷新
       if (isTokenExpiringSoon() && !isRefreshingToken) {
         isRefreshingToken = true
         try {
-          await directRefreshToken()
+          await triggerRefresh()
         } catch {
           // 刷新失败，执行登出
           ElMessage.error('登录已过期，请重新登录')
@@ -99,28 +98,6 @@ export const useUserStore = defineStore('user', () => {
         // 心跳失败静默忽略
       }
     }, HEARTBEAT_INTERVAL)
-  }
-
-  // 直接调用刷新接口（绕过请求拦截器，避免 token 过期时的循环依赖）
-  const directRefreshToken = async () => {
-    if (!refreshTokenValue.value) {
-      throw new Error('No refresh token available')
-    }
-
-    const res = await axios.post('/api/auth/refresh', { refreshToken: refreshTokenValue.value })
-    const data = res.data?.data
-    if (res.data?.code !== 200 || !data) {
-      throw new Error(res.data?.message || 'Token 刷新失败')
-    }
-
-    token.value = data.accessToken
-    refreshTokenValue.value = data.refreshToken
-    localStorage.setItem('token', data.accessToken)
-    localStorage.setItem('refreshToken', data.refreshToken)
-    if (data.expiresIn) {
-      setTokenExpireTime(data.expiresIn)
-    }
-    return data
   }
 
   // 停止心跳定时器
