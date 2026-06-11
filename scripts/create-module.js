@@ -65,7 +65,8 @@ const dirs = [
   `forge-module-${moduleName}-api/src/main/java/com/forge/modules/${moduleName}/entity`,
   `forge-module-${moduleName}-api/src/main/java/com/forge/modules/${moduleName}/dto`,
   // biz 模块
-  `forge-module-${moduleName}-biz/src/main/java/com/forge/modules/${moduleName}/controller`,
+  `forge-module-${moduleName}-biz/src/main/java/com/forge/modules/${moduleName}/controller/admin`,
+  `forge-module-${moduleName}-biz/src/main/java/com/forge/modules/${moduleName}/controller/app`,
   `forge-module-${moduleName}-biz/src/main/java/com/forge/modules/${moduleName}/mapper`,
   `forge-module-${moduleName}-biz/src/main/java/com/forge/modules/${moduleName}/service/impl`,
   `forge-module-${moduleName}-biz/src/main/resources/mapper/${moduleName}`,
@@ -302,7 +303,8 @@ log(`  │       └── dto/`)
 log(`  └── ${bizArtifactId}/`)
 log(`      ├── pom.xml`)
 log(`      └── src/main/java/com/forge/modules/${moduleName}/`)
-log(`          ├── controller/`)
+log(`          ├── controller/admin/  (后台管理端点)`)
+  log(`          ├── controller/app/   (移动端端点)`)
 log(`          ├── mapper/`)
 log(`          └── service/impl/`)
 

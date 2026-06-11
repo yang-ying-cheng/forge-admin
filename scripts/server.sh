@@ -34,7 +34,7 @@ wait_for_port() {
     local timeout=${1:-60}
     local elapsed=0
     while [ $elapsed -lt $timeout ]; do
-        if curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/api/auth/captcha 2>/dev/null | grep -q "200\|500"; then
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/admin-api/auth/captcha 2>/dev/null | grep -q "200\|500"; then
             return 0
         fi
         sleep 2
