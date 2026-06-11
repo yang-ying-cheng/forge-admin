@@ -24,7 +24,7 @@ export function useWebSocket() {
     if (stompClient.value?.connected) return
 
     const client = new Client({
-      webSocketFactory: () => new SockJS('/api/ws'),
+      webSocketFactory: () => new SockJS('/ws'),
       reconnectDelay: 5000,
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,

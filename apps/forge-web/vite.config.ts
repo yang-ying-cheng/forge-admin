@@ -34,6 +34,11 @@ export default defineConfig({
       '/app-api': {
         target: 'http://localhost:8181',
         changeOrigin: true
+      },
+      '/ws': {
+        target: 'http://localhost:8181',
+        changeOrigin: true,
+        ws: true
       }
     }
   },
