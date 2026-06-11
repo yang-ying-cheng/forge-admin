@@ -91,7 +91,7 @@ const getRefreshPromise = (): Promise<string> => {
   }
 
   refreshPromise = axios
-    .post<Result<any>>('/api/auth/refresh', { refreshToken: refreshTokenValue })
+    .post<Result<any>>('/admin-api/auth/refresh', { refreshToken: refreshTokenValue })
     .then((response) => {
       const res = response.data
       if (res.code === 200 && res.data) {
@@ -120,7 +120,7 @@ const getRefreshPromise = (): Promise<string> => {
 
 // 创建 axios 实例
 const service: AxiosInstance = axios.create({
-  baseURL: '/api',
+  baseURL: '/admin-api',
   timeout: 30000
 })
 
