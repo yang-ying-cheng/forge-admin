@@ -268,20 +268,26 @@ Body: { "nickname": "x", "avatar": "https://..." }   // null 字段忽略
 
 ### 菜单与权限 SQL
 
-迁移脚本同步插入菜单和权限：
+迁移脚本同步插入菜单和权限。`parent_id` 通过查询"系统管理"一级菜单获得，避免硬编码（与现有 `V2026042803__oauth2_menu.sql` 同模式）：
 
 ```sql
 -- 一级菜单：App用户（挂在"系统管理"下）
-INSERT INTO sys_menu(name, parent_id, path, component, perms, type, icon, ...)
-VALUES('App用户', <system_root_id>, '/system/app-user', 'system/app-user/index',
-       'system:app-user:list', 0, 'user', ...);
+SET @system_parent_id = (SELECT id FROM sys_menu WHERE path = '/system' AND parent_id = 0 LIMIT 1);
+
+INSERT INTO sys_menu(name, parent_id, path, component, perms, type, icon, status, visible, create_time, update_time)
+VALUES('App用户', @system_parent_id, '/system/app-user', 'system/app-user/index',
+       'system:app-user:list', 1, 'user', 0, 1, NOW(), NOW());
+
+SET @app_user_menu_id = LAST_INSERT_ID();
 
 -- 二级按钮权限
-INSERT INTO sys_menu(...) VALUES
-  ('详情', <app_user_menu_id>, '', '', 'system:app-user:detail', 2, '', ...),
-  ('封禁/解封/重置', ..., '', '', 'system:app-user:update', 2, '', ...),
-  ('删除', ..., '', '', 'system:app-user:delete', 2, '', ...);
+INSERT INTO sys_menu(name, parent_id, perms, type, status, visible, create_time, update_time) VALUES
+  ('详情', @app_user_menu_id, 'system:app-user:detail', 2, 0, 1, NOW(), NOW()),
+  ('封禁/解封/重置', @app_user_menu_id, 'system:app-user:update', 2, 0, 1, NOW(), NOW()),
+  ('删除', @app_user_menu_id, 'system:app-user:delete', 2, 0, 1, NOW(), NOW());
 ```
+
+> 字段名/数量以现有 `sys_menu` 表实际 schema 为准；开发时以 `apps/forge-server/forge-module-system/forge-module-system-biz/src/main/resources/` 下的最新迁移脚本为准做对齐。
 
 ## 关键流程
 
@@ -307,12 +313,15 @@ App → POST /user/bind-phone {phone, code}
       不匹配: INCR error，到 5 次 DEL code（返回 SMS_CODE_LOCKED）
   → AppUserService.bindPhone(userId, phone)
       取分布式锁 app:lock:bind-phone:{phone}
-      二次校验 phone 未被其他有效用户占用（防并发）
+      二次校验 phone 未被其他有效用户占用（排除当前 userId，允许重提交同号）
       更新 app_user: phone, phone_verified=1
       释放锁
 ```
 
-**关键点：发码预检 + 绑定时二次校验**，防止发码后别人抢绑。
+**关键点：**
+- 发码预检 + 绑定时二次校验，防止发码后别人抢绑
+- 二次校验 SQL：`SELECT id FROM app_user WHERE phone = ? AND deleted = 0 AND id != ?`，若有结果则抛 `PHONE_ALREADY_BOUND`
+- 同一用户重提交同号绑定（含相同 phone + code 已被消费的情况）：验证码已被 DEL，会先在 `verify` 阶段返回 `SMS_CODE_NOT_FOUND`
 
 ### 流程 3：账号注销
 
@@ -377,14 +386,20 @@ public Object check(ProceedingJoinPoint pjp) {
     Long userId = (Long) RequestContextHolder.currentRequestAttributes()
             .getAttribute("appUserId", RequestAttributes.SCOPE_REQUEST);
     AppUser user = appUserService.getById(userId);
-    if (user == null || user.getDeleted() == 1
-            || user.getDeactivatedTime() != null
-            || user.getStatus() == 1) {
-        throw new BusinessException(USER_DEACTIVATED);
+    if (user == null) {
+        throw new BusinessException(USER_NOT_FOUND);
+    }
+    if (user.getDeleted() == 1 || user.getDeactivatedTime() != null) {
+        throw new BusinessException(USER_DEACTIVATED);   // 40301
+    }
+    if (user.getStatus() == 1) {
+        throw new BusinessException(USER_DISABLED);      // 40302
     }
     return pjp.proceed();
 }
 ```
+
+**按状态分别抛错码**：让前端能区分提示文案（"账号已注销"vs"账号已被封禁，请联系客服"）。
 
 **走 controller 层而非 service 层**：切面只想拦 app 端写操作，admin 端调用 service 不应受影响（admin 端可能需要操作已封禁用户的数据）。
 
