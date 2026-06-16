@@ -17,6 +17,7 @@ forge-admin 是一个基于 RBAC 的企业级后台管理系统，采用 monorep
 | 服务 | 端口 | 路径 |
 |------|------|------|
 | 前端开发 | 3003 | `apps/forge-web` |
+| 小程序开发 | - | `apps/forge-miniapp` |
 | 后端 API | 8181 | `apps/forge-server` |
 | 上下文路径 | - | `/api` |
 
@@ -31,6 +32,13 @@ pnpm dev        # 启动开发服务器（端口 3003）
 pnpm build      # 生产构建（含类型检查）
 pnpm lint       # 运行 ESLint
 pnpm test       # 运行 vitest 单元测试
+```
+
+### 小程序（在 `apps/forge-miniapp` 目录下）
+```bash
+pnpm install        # 安装依赖
+pnpm dev:mp-weixin  # 微信小程序开发模式
+pnpm build:mp-weixin # 微信小程序生产构建
 ```
 
 ### 后端（在 `apps/forge-server` 目录下）
@@ -127,6 +135,28 @@ views/         # 页面组件（通过 import.meta.glob 自动发现）
 
 **动态路由：** 后端返回菜单树 → `permissionStore.setRoutes()` → `import.meta.glob('/src/views/**/*.vue')` 解析组件 → `router.addRoute()`，404 最后添加。
 
+## 小程序架构（`apps/forge-miniapp/src/`）
+
+```
+api/           # API 接口定义（auth, user）
+pages/         # 页面组件
+  login/       # 微信授权登录页
+  profile/     # 个人中心（编辑、手机绑定、注销）
+stores/        # Pinia 状态管理（user）
+static/        # 静态资源（logo.svg, default-avatar.png）
+composables/   # 组合式函数
+```
+
+**微信登录流程：**
+1. 小程序调用 `uni.login()` 获取 code
+2. 后端 `/app-api/auth/wx-login` 用 code 换取 openId
+3. 后端查找/创建 `app_user` 记录，返回 JWT Token
+4. 小程序存储 Token，用于后续 API 请求
+
+**环境变量配置：**
+- `WX_MINI_APP_ID` - 微信小程序 AppID（必填，否则使用 Mock 模式）
+- `WX_MINI_APP_SECRET` - 微信小程序 AppSecret
+
 ## 重要模式
 
 ### API 响应格式
@@ -175,6 +205,9 @@ pnpm run init <项目名称> "<项目描述>" <Java包名>
 | 前端请求工具 | `apps/forge-web/src/utils/request.ts` |
 | 路由守卫 | `apps/forge-web/src/router/index.ts` |
 | vxe-table 全局配置 | `apps/forge-web/src/plugins/vxe/vxe-table-config.ts` |
+| 小程序 API 定义 | `apps/forge-miniapp/src/api/` |
+| 小程序登录页 | `apps/forge-miniapp/src/pages/login/index.vue` |
+| 微信登录服务 | `apps/forge-server/forge-module-system-biz/.../service/app/AppAuthServiceImpl.java` |
 
 ## 命名约定
 
@@ -192,6 +225,13 @@ pnpm run init <项目名称> "<项目描述>" <Java包名>
 | 文件名 | kebab-case | `user-profile.vue` |
 | 组件名 | PascalCase | `UserProfile` |
 | 变量/函数 | camelCase | `getUserInfo` |
+
+### 小程序（uni-app）
+| 类型 | 约定 | 示例 |
+|------|------|------|
+| 页面目录 | kebab-case | `pages/profile/` |
+| 静态资源 | kebab-case | `static/logo.svg` |
+| API 模块 | camelCase | `authApi`、`userApi` |
 
 ### API 路径
 `/api/{module}/{entity}/{action}`，如 `/api/auth/login`、`/api/system/user/list`

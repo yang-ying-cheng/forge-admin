@@ -432,7 +432,30 @@ CREATE TABLE `sys_social_user` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='社交账号绑定表';
 
 -- ========================================
--- 21. OAuth2 注册客户端表
+-- 21. 移动端用户表
+-- ========================================
+DROP TABLE IF EXISTS `app_user`;
+CREATE TABLE `app_user` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `open_id` varchar(64) NOT NULL COMMENT '微信openid',
+  `union_id` varchar(64) DEFAULT NULL COMMENT '微信unionid',
+  `nickname` varchar(64) DEFAULT NULL COMMENT '昵称',
+  `avatar` varchar(512) DEFAULT NULL COMMENT '头像URL',
+  `phone` varchar(20) DEFAULT NULL COMMENT '手机号',
+  `phone_verified` tinyint DEFAULT 0 COMMENT '手机号是否验证(0:未验证 1:已验证)',
+  `deactivated_time` datetime DEFAULT NULL COMMENT '注销时间',
+  `status` tinyint NOT NULL DEFAULT 1 COMMENT '状态(0:禁用 1:正常)',
+  `last_login_time` datetime DEFAULT NULL COMMENT '最后登录时间',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除(0:正常 1:已删除)',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_open_id` (`open_id`),
+  KEY `idx_phone` (`phone`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='移动端用户表';
+
+-- ========================================
+-- 22. OAuth2 注册客户端表
 -- ========================================
 DROP TABLE IF EXISTS `oauth2_registered_client`;
 CREATE TABLE `oauth2_registered_client` (
@@ -454,7 +477,7 @@ CREATE TABLE `oauth2_registered_client` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OAuth2注册客户端';
 
 -- ========================================
--- 22. OAuth2 授权信息表
+-- 23. OAuth2 授权信息表
 -- ========================================
 DROP TABLE IF EXISTS `oauth2_authorization`;
 CREATE TABLE `oauth2_authorization` (
@@ -497,7 +520,7 @@ CREATE TABLE `oauth2_authorization` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OAuth2授权信息';
 
 -- ========================================
--- 23. OAuth2 授权同意表
+-- 24. OAuth2 授权同意表
 -- ========================================
 DROP TABLE IF EXISTS `oauth2_authorization_consent`;
 CREATE TABLE `oauth2_authorization_consent` (
@@ -508,7 +531,7 @@ CREATE TABLE `oauth2_authorization_consent` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='OAuth2授权同意';
 
 -- ========================================
--- 24. 序列号生成规则表
+-- 25. 序列号生成规则表
 -- ========================================
 DROP TABLE IF EXISTS `sys_key_sequence`;
 CREATE TABLE `sys_key_sequence` (
