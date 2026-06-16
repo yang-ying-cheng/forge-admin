@@ -46,7 +46,7 @@ public class AssertAppUserActiveAspect {
         if (user.getDeleted() == 1 || user.getDeactivatedTime() != null) {
             throw new BusinessException(ResultCode.USER_DEACTIVATED);
         }
-        if (user.getStatus() == 1) {
+        if (user.getStatus() != 1) {
             throw new BusinessException(ResultCode.USER_DISABLED);
         }
 

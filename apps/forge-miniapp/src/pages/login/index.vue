@@ -28,7 +28,7 @@ const handleLogin = async () => {
     // 获取微信 code
     const loginRes = await uni.login({ provider: 'weixin' })
     const code = loginRes.code
-
+	
     // 调后端 wx-login
     const data = await authApi.wxLogin(code)
 

@@ -1,0 +1,20 @@
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- 浅色渐变 -->
+    <linearGradient id="lightGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5ac8fa"/>
+      <stop offset="100%" style="stop-color:#007aff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 浅色圆形背景 -->
+  <circle cx="60" cy="60" r="56" fill="#e8f4ff" stroke="#007aff" stroke-width="2"/>
+
+  <!-- 简约 F 标志 -->
+  <text x="60" y="68"
+        font-family="SF Pro Display, -apple-system, Arial"
+        font-size="48"
+        font-weight="600"
+        fill="url(#lightGradient)"
+        text-anchor="middle">F</text>
+</svg>
