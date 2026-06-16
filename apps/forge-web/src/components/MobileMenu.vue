@@ -10,7 +10,7 @@
       <!-- Logo -->
       <div class="mobile-menu-header">
         <div class="logo">
-          <img src="/vite.svg" alt="logo" />
+          <img src="/logo.svg" alt="logo" />
           <span>forge-admin</span>
         </div>
         <el-icon class="close-btn" @click="visible = false">

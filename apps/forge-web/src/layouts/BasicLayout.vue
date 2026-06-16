@@ -3,7 +3,7 @@
     <!-- 侧边栏（移动端隐藏） -->
     <el-aside v-show="!isMobile" :width="isCollapse ? '64px' : '220px'" class="layout-aside">
       <div class="logo">
-        <img src="/vite.svg" alt="logo" />
+        <img src="/logo.svg" alt="logo" />
         <span v-show="!isCollapse">{{ appTitle }}</span>
       </div>
       <el-scrollbar>

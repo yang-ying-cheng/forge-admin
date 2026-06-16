@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="login-box">
       <div class="login-header">
-        <img src="/vite.svg" alt="logo" />
+        <img src="/logo.svg" alt="logo" />
         <h1>{{ appTitle }}</h1>
         <p>{{ appSubtitle }}</p>
       </div>
