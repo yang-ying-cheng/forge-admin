@@ -6,11 +6,6 @@
     { "path": "pages/profile/phone", "style": { "navigationBarTitleText": "绑定手机号" } },
     { "path": "pages/profile/deactivate", "style": { "navigationBarTitleText": "注销账号" } }
   ],
-  "tabBar": {
-    "list": [
-      { "pagePath": "pages/profile/index", "text": "我的" }
-    ]
-  },
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "Forge Miniapp",
