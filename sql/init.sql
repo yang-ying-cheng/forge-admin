@@ -582,6 +582,7 @@ INSERT INTO `sys_user_role` (`user_id`, `role_id`) VALUES (1, 1);
 
 -- 初始化菜单
 INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `route_path`, `component_path`, `redirect_path`, `icon`, `sort_order`, `menu_type`, `permission`, `status`, `visible`, `is_external`, `is_cached`) VALUES
+-- 系统管理
 (1, '系统管理', 0, '/system', 'Layout', NULL, 'Setting', 1, 0, NULL, 1, 1, 0, 0),
 (2, '用户管理', 1, '/system/user', '/views/system/user/index', NULL, 'User', 1, 1, 'system:user:list', 1, 1, 0, 0),
 (3, '角色管理', 1, '/system/role', '/views/system/role/index', NULL, 'UserFilled', 2, 1, 'system:role:list', 1, 1, 0, 0),
@@ -590,13 +591,24 @@ INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `route_path`, `component
 (6, '岗位管理', 1, '/system/position', '/views/system/position/index', NULL, 'Briefcase', 5, 1, 'system:position:list', 1, 1, 0, 0),
 (7, '字典管理', 1, '/system/dict-type', '/views/system/dict-type/index', NULL, 'Collection', 6, 1, 'system:dict:list', 1, 1, 0, 0),
 (8, '系统配置', 1, '/system/config', '/views/system/config/index', NULL, 'Tools', 7, 1, 'system:config:list', 1, 1, 0, 0),
-(9, '操作日志', 1, '/system/operation-log', '/views/system/operation-log/index', NULL, 'Document', 8, 1, 'system:log:list', 1, 1, 0, 0),
+-- 基础设施
+(65, '基础设施', 0, '/basic', 'Layout', NULL, 'Platform', 2, 0, NULL, 1, 1, 0, 0),
+(9, '操作日志', 65, '/system/operation-log', '/views/system/operation-log/index', NULL, 'Document', 1, 1, 'system:log:list', 1, 1, 0, 0),
+(39, '定时任务', 65, '/system/job', '/views/system/job/index', NULL, 'Timer', 2, 1, 'system:job:list', 1, 1, 0, 0),
+(44, '登录日志', 65, '/system/login-log', '/views/system/login-log/index', NULL, 'Promotion', 3, 1, 'system:login-log:list', 1, 1, 0, 0),
+(47, '在线用户', 65, '/system/online-user', '/views/system/online-user/index', NULL, 'UserFilled', 4, 1, 'system:online-user:list', 1, 1, 0, 0),
+(49, '通知公告', 65, '/system/notice', '/views/system/notice/index', NULL, 'BellFilled', 5, 1, 'system:notice:list', 1, 1, 0, 0),
+(54, '文件配置', 65, '/system/file-config', '/views/system/file-config/index', NULL, 'FolderOpened', 6, 1, 'system:file-config:list', 1, 1, 0, 0),
+(66, '附件管理', 65, '/system/attachment', '/views/system/attachment/index', NULL, 'Upload', 7, 1, 'system:attachment:list', 1, 1, 0, 0),
+(80, '序列号生成器', 65, '/system/key-sequence', '/views/system/key-sequence/index', NULL, 'Stamp', 8, 1, 'system:key-sequence:list', 1, 1, 0, 0),
+(70, 'OAuth2客户端', 1, '/system/oauth2-client', '/views/system/oauth2-client/index', NULL, 'Key', 8, 1, 'system:oauth2-client:list', 1, 1, 0, 0),
 -- 用户管理按钮
 (10, '用户查询', 2, '', '', NULL, '', 1, 2, 'system:user:query', 1, 1, 0, 0),
 (11, '用户新增', 2, '', '', NULL, '', 2, 2, 'system:user:add', 1, 1, 0, 0),
 (12, '用户编辑', 2, '', '', NULL, '', 3, 2, 'system:user:edit', 1, 1, 0, 0),
 (13, '用户删除', 2, '', '', NULL, '', 4, 2, 'system:user:delete', 1, 1, 0, 0),
 (14, '重置密码', 2, '', '', NULL, '', 5, 2, 'system:user:resetPwd', 1, 1, 0, 0),
+(61, '用户导出', 2, '', '', NULL, '', 7, 2, 'system:user:export', 1, 1, 0, 0),
 -- 角色管理按钮
 (15, '角色查询', 3, '', '', NULL, '', 1, 2, 'system:role:query', 1, 1, 0, 0),
 (16, '角色新增', 3, '', '', NULL, '', 2, 2, 'system:role:add', 1, 1, 0, 0),
@@ -628,52 +640,40 @@ INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `route_path`, `component
 (36, '配置新增', 8, '', '', NULL, '', 2, 2, 'system:config:add', 1, 1, 0, 0),
 (37, '配置编辑', 8, '', '', NULL, '', 3, 2, 'system:config:edit', 1, 1, 0, 0),
 (38, '配置删除', 8, '', '', NULL, '', 4, 2, 'system:config:delete', 1, 1, 0, 0),
--- 定时任务
-(39, '定时任务', 1, '/system/job', '/views/system/job/index', '', 'Timer', 10, 1, 'system:job:list', 1, 1, 0, 0),
+-- 定时任务按钮
 (40, '任务查询', 39, '', '', NULL, '', 1, 2, 'system:job:query', 1, 1, 0, 0),
 (41, '任务新增', 39, '', '', NULL, '', 2, 2, 'system:job:add', 1, 1, 0, 0),
 (42, '任务编辑', 39, '', '', NULL, '', 3, 2, 'system:job:edit', 1, 1, 0, 0),
 (43, '任务删除', 39, '', '', NULL, '', 4, 2, 'system:job:delete', 1, 1, 0, 0),
--- 登录日志
-(44, '登录日志', 1, '/system/login-log', '/views/system/login-log/index', NULL, 'Promotion', 11, 1, 'system:login-log:list', 1, 1, 0, 0),
+(60, '任务日志', 39, '/system/job-log', '/views/system/job-log/index', NULL, 'List', 2, 1, 'monitor:job-log:list', 1, 0, 0, 0),
+-- 登录日志按钮
 (45, '日志查询', 44, NULL, NULL, NULL, NULL, 1, 2, 'system:login-log:query', 1, 1, 0, 0),
 (46, '日志清空', 44, NULL, NULL, NULL, NULL, 2, 2, 'system:login-log:clear', 1, 1, 0, 0),
--- 任务日志
-(60, '任务日志', 39, '/system/job-log', '/views/system/job-log/index', NULL, 'List', 2, 1, 'monitor:job-log:list', 1, 0, 0, 0),
--- 用户导出
-(61, '用户导出', 2, '', '', NULL, '', 7, 2, 'system:user:export', 1, 1, 0, 0),
--- 在线用户
-(47, '在线用户', 1, '/system/online-user', '/views/system/online-user/index', NULL, 'UserFilled', 12, 1, 'system:online-user:list', 1, 1, 0, 0),
+(64, '导出', 44, NULL, NULL, NULL, NULL, 3, 2, 'system:login-log:export', 1, 1, 0, 0),
+-- 在线用户按钮
 (48, '强制退出', 47, NULL, NULL, NULL, NULL, 1, 2, 'system:online-user:force-logout', 1, 1, 0, 0),
--- 通知公告
-(49, '通知公告', 1, '/system/notice', '/views/system/notice/index', NULL, 'BellFilled', 13, 1, 'system:notice:list', 1, 1, 0, 0),
+-- 通知公告按钮
 (50, '公告查询', 49, NULL, NULL, NULL, NULL, 1, 2, 'system:notice:query', 1, 1, 0, 0),
 (51, '公告新增', 49, NULL, NULL, NULL, NULL, 2, 2, 'system:notice:add', 1, 1, 0, 0),
 (52, '公告编辑', 49, NULL, NULL, NULL, NULL, 3, 2, 'system:notice:edit', 1, 1, 0, 0),
 (53, '公告删除', 49, NULL, NULL, NULL, NULL, 4, 2, 'system:notice:delete', 1, 1, 0, 0),
--- 文件配置
-(54, '文件配置', 1, '/system/file-config', '/views/system/file-config/index', NULL, 'FolderOpened', 14, 1, 'system:file-config:list', 1, 1, 0, 0),
+-- 文件配置按钮
 (55, '配置查询', 54, NULL, NULL, NULL, NULL, 1, 2, 'system:file-config:query', 1, 1, 0, 0),
 (56, '配置新增', 54, NULL, NULL, NULL, NULL, 2, 2, 'system:file-config:add', 1, 1, 0, 0),
 (57, '配置编辑', 54, NULL, NULL, NULL, NULL, 3, 2, 'system:file-config:edit', 1, 1, 0, 0),
 (58, '配置删除', 54, NULL, NULL, NULL, NULL, 4, 2, 'system:file-config:delete', 1, 1, 0, 0),
 -- 操作日志导出
 (63, '导出', 9, '', '', NULL, '', 3, 2, 'system:log:export', 1, 1, 0, 0),
--- 登录日志导出
-(64, '导出', 44, NULL, NULL, NULL, NULL, 3, 2, 'system:login-log:export', 1, 1, 0, 0),
--- 附件管理
-(66, '附件管理', 1, '/system/attachment', '/views/system/attachment/index', NULL, 'Upload', 15, 1, 'system:attachment:list', 1, 1, 0, 0),
+-- 附件管理按钮
 (67, '附件查询', 66, '', '', NULL, '', 1, 2, 'system:attachment:query', 1, 1, 0, 0),
 (68, '附件上传', 66, '', '', NULL, '', 2, 2, 'system:attachment:upload', 1, 1, 0, 0),
 (69, '附件删除', 66, '', '', NULL, '', 3, 2, 'system:attachment:delete', 1, 1, 0, 0),
--- OAuth2客户端管理
-(70, 'OAuth2客户端', 1, '/system/oauth2-client', '/views/system/oauth2-client/index', NULL, 'Key', 16, 1, 'system:oauth2-client:list', 1, 1, 0, 0),
+-- OAuth2客户端按钮
 (71, '客户端查询', 70, '', '', NULL, '', 1, 2, 'system:oauth2-client:query', 1, 1, 0, 0),
 (72, '客户新增', 70, '', '', NULL, '', 2, 2, 'system:oauth2-client:add', 1, 1, 0, 0),
 (73, '客户端修改', 70, '', '', NULL, '', 3, 2, 'system:oauth2-client:edit', 1, 1, 0, 0),
 (74, '客户端删除', 70, '', '', NULL, '', 4, 2, 'system:oauth2-client:delete', 1, 1, 0, 0),
--- 序列号管理
-(80, '序列号管理', 1, '/system/key-sequence', '/views/system/key-sequence/index', NULL, 'Stamp', 17, 1, 'system:key-sequence:list', 1, 1, 0, 0),
+-- 序列号管理按钮
 (81, '序列查询', 80, '', '', NULL, '', 1, 2, 'system:key-sequence:query', 1, 1, 0, 0),
 (82, '序列新增', 80, '', '', NULL, '', 2, 2, 'system:key-sequence:add', 1, 1, 0, 0),
 (83, '序列编辑', 80, '', '', NULL, '', 3, 2, 'system:key-sequence:edit', 1, 1, 0, 0),
