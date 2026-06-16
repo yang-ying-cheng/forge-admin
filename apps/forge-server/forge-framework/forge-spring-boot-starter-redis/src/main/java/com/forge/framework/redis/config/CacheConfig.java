@@ -1,6 +1,13 @@
 package com.forge.framework.redis.config;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.annotation.EnableCaching;
@@ -42,12 +49,27 @@ public class CacheConfig implements CachingConfigurer {
 
     /**
      * Redis 缓存管理器
-     * 使用注入的 ObjectMapper，已配置自定义序列化器
+     * 使用专门的 ObjectMapper 配置类型信息，解决缓存反序列化问题
      */
     @Bean
-    public CacheManager cacheManager(RedisConnectionFactory factory, ObjectMapper objectMapper) {
-        // 使用注入的 ObjectMapper 创建序列化器
-        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(objectMapper);
+    public CacheManager cacheManager(RedisConnectionFactory factory) {
+        // 创建专门用于 Redis 缓存的 ObjectMapper，启用类型信息
+        ObjectMapper redisObjectMapper = new ObjectMapper();
+        // 注册 Java 8 时间模块
+        redisObjectMapper.registerModule(new JavaTimeModule());
+        redisObjectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        redisObjectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+        redisObjectMapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        redisObjectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+        // 启用默认类型信息，允许反序列化为正确类型
+        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+                .allowIfBaseType(Object.class)
+                .build();
+        redisObjectMapper.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL);
+
+        // 使用专门的 ObjectMapper 创建序列化器
+        GenericJackson2JsonRedisSerializer jsonSerializer = new GenericJackson2JsonRedisSerializer(redisObjectMapper);
         StringRedisSerializer stringSerializer = new StringRedisSerializer();
 
         // 默认缓存配置（30分钟）

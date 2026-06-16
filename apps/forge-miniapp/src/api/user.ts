@@ -1,13 +1,13 @@
 import { request } from './request'
 
 export interface UserInfo {
-  id: number
-  nickname: string
-  avatar: string
+  id: number | string
+  nickname: string | null
+  avatar: string | null
   phone: string | null
-  phoneVerified: number
-  openId: string
-  status: number
+  phoneVerified: number | null
+  openId?: string
+  status: number | null
   lastLoginTime: string | null
 }
 

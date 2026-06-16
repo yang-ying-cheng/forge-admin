@@ -151,9 +151,11 @@ public class AppAuthServiceImpl implements AppAuthService {
     }
 
     private String getWxOpenId(String code) {
-        // Mock 模式：如果 appId 未配置，返回模拟 openId 用于开发测试
-        if (appId == null || appId.isEmpty()) {
-            log.warn("微信小程序 appId 未配置，使用 Mock 模式，code: {}", code);
+        // Mock 模式：如果 appId 未配置（空白字符串），返回模拟 openId 用于开发测试
+        log.debug("wxLogin appId value: '{}', length: {}, isEmpty: {}, isBlank: {}",
+            appId, appId == null ? "null" : appId.length(), appId == null, appId != null && appId.isBlank());
+        if (appId == null || appId.isBlank()) {
+            log.info("微信小程序 appId 未配置，使用 Mock 模式，code: {}", code);
             return "mock_openid_" + code.hashCode();
         }
         try {

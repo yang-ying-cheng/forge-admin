@@ -54,8 +54,14 @@ public class AppAttachmentController {
         // 复用 SysAttachmentService
         AttachmentResponse response = sysAttachmentService.upload(file, bizType, null);
 
+        // 静态资源路径直接使用 /uploads/**，可公开访问
+        String fileUrl = response.getFileUrl();
+        if (fileUrl != null && fileUrl.contains("/api/uploads/")) {
+            fileUrl = fileUrl.replace("/api/uploads/", "/uploads/");
+        }
+
         return Result.success(AppUploadResponse.builder()
-                .url(response.getFileUrl())
+                .url(fileUrl)
                 .attachmentId(response.getId())
                 .build());
     }

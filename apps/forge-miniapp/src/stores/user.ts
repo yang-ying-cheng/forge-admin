@@ -1,15 +1,10 @@
 import { defineStore } from 'pinia'
+import type { UserInfo } from '@/api/user'
 
 interface UserState {
   accessToken: string | null
   refreshToken: string | null
-  userInfo: {
-    id: number
-    nickname: string
-    avatar: string
-    phone: string | null
-    phoneVerified: number
-  } | null
+  userInfo: UserInfo | null
 }
 
 export const useUserStore = defineStore('user', {
@@ -22,6 +17,9 @@ export const useUserStore = defineStore('user', {
     setTokens(access: string, refresh: string) {
       this.accessToken = access
       this.refreshToken = refresh
+      // 同步存储到 uni storage，供 request.ts 使用
+      uni.setStorageSync('accessToken', access)
+      uni.setStorageSync('refreshToken', refresh)
     },
     setUserInfo(info: UserState['userInfo']) {
       this.userInfo = info
@@ -30,15 +28,16 @@ export const useUserStore = defineStore('user', {
       this.accessToken = null
       this.refreshToken = null
       this.userInfo = null
+      // 清除 uni storage
+      uni.removeStorageSync('accessToken')
+      uni.removeStorageSync('refreshToken')
+      uni.removeStorageSync('userInfo')
     },
     init() {
-      // 启动时验证 token 有效性（暂时跳过，待 api 封装完成后实现）
-    }
-  },
-  persist: {
-    storage: {
-      getItem: (key) => uni.getStorageSync(key),
-      setItem: (key, value) => uni.setStorageSync(key, value)
+      // 启动时从 storage 加载 token
+      this.accessToken = uni.getStorageSync('accessToken') || null
+      this.refreshToken = uni.getStorageSync('refreshToken') || null
+      this.userInfo = uni.getStorageSync('userInfo') || null
     }
   }
 })

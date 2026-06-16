@@ -70,6 +70,7 @@ public class SecurityConfig {
             "/favicon.ico",
             "/file/**",
             "/uploads/**",
+            "/app-api/uploads/**",
             "/ws/info/**",
             "/topic/**",
             "/error"
@@ -78,6 +79,7 @@ public class SecurityConfig {
     private static final String[] APP_WHITE_LIST = {
             "/app-api/auth/wx-login",
             "/app-api/auth/refresh",
+            "/app-api/uploads/**",
     };
 
     @Bean
@@ -100,6 +102,16 @@ public class SecurityConfig {
 
     @Bean
     @Order(1)
+    public SecurityFilterChain staticResourceSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/app-api/uploads/**", "/uploads/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain appSecurityFilterChain(HttpSecurity http,
                                                        @Lazy AppJwtAuthenticationFilter appJwtAuthenticationFilter) throws Exception {
         http
@@ -116,7 +128,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(3)
+    @Order(4)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 .securityMatcher("/**")

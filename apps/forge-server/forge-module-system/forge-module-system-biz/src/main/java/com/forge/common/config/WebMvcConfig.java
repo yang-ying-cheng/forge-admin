@@ -4,6 +4,7 @@ import com.forge.framework.web.config.WebProperties;
 import com.forge.modules.system.entity.SysFileConfig;
 import com.forge.modules.system.service.SysFileConfigService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
@@ -13,6 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 /**
  * WebMvc配置
  */
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -49,9 +51,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
         }
 
         String absolutePath = new java.io.File(uploadPath).getAbsolutePath();
+        log.info("[WebMvc] 静态资源映射: /uploads/** -> file:{} , /app-api/uploads/** -> file:{}", absolutePath, absolutePath);
 
         // 静态资源映射（移除 /api/uploads/** 因为context-path将被移除）
         registry.addResourceHandler("/uploads/**")
+                .addResourceLocations("file:" + absolutePath + "/");
+
+        // App 端静态资源映射
+        registry.addResourceHandler("/app-api/uploads/**")
                 .addResourceLocations("file:" + absolutePath + "/");
     }
 }

@@ -2,7 +2,6 @@ package com.forge.modules.system.service.sms;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Service;
 
 /**
@@ -15,7 +14,6 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@ConditionalOnMissingBean(SmsService.class)
 public class MockSmsServiceImpl implements SmsService {
 
     @Override

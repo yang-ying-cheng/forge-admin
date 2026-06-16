@@ -93,7 +93,7 @@
         <!-- 头像 -->
         <vxe-column title="头像" width="80">
           <template #default="{ row }">
-            <el-avatar :size="40" :src="row.avatar || undefined">
+            <el-avatar :size="30" :src="row.avatar || undefined" shape="square" effect="light">
               <el-icon><User /></el-icon>
             </el-avatar>
           </template>
