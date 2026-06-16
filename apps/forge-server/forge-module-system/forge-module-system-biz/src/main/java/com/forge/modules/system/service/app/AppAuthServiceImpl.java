@@ -6,6 +6,7 @@ import com.forge.framework.security.config.JwtProperties;
 import com.forge.modules.system.dto.app.AppLoginResponse;
 import com.forge.modules.system.dto.app.AppUserProfileResponse;
 import com.forge.modules.system.entity.AppUser;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class AppAuthServiceImpl implements AppAuthService {
 
     private static final String REFRESH_TOKEN_PREFIX = "app_refresh_token:";
     private static final String SESSION_PREFIX = "app_session:";
+    private static final String USER_SESSIONS_PREFIX = "app_user_sessions:";
     private static final String WX_CODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code";
 
     @Override
@@ -65,7 +67,7 @@ public class AppAuthServiceImpl implements AppAuthService {
         String accessToken = generateAppToken(user.getId().toString(), tokenId);
         String refreshToken = generateRefreshToken(user.getId().toString());
 
-        saveAppSession(tokenId, user.getId(), user.getOpenId());
+        saveAppSession(tokenId, user.getId(), user.getOpenId(), refreshToken);
 
         AppUserProfileResponse profile = appUserService.getProfile(user.getId());
         return AppLoginResponse.builder()
@@ -98,7 +100,7 @@ public class AppAuthServiceImpl implements AppAuthService {
         String accessToken = generateAppToken(userId.toString(), tokenId);
         String newRefreshToken = generateRefreshToken(userId.toString());
 
-        saveAppSession(tokenId, userId, user.getOpenId());
+        saveAppSession(tokenId, userId, user.getOpenId(), newRefreshToken);
 
         AppUserProfileResponse profile = appUserService.getProfile(userId);
         return AppLoginResponse.builder()
@@ -113,8 +115,38 @@ public class AppAuthServiceImpl implements AppAuthService {
 
     @Override
     public void logout(String accessToken, String refreshToken) {
+        String userIdStr = null;
+        String tokenId = null;
+
+        // 从 accessToken 中解析 tokenId 和 userId
+        if (accessToken != null) {
+            try {
+                tokenId = parseTokenIdFromAccessToken(accessToken);
+                userIdStr = parseUserIdFromAccessToken(accessToken);
+            } catch (Exception e) {
+                log.warn("解析 accessToken 失败", e);
+            }
+        }
+
+        // 从 session SET 中移除
+        if (userIdStr != null) {
+            String sessionSetKey = USER_SESSIONS_PREFIX + userIdStr;
+            if (tokenId != null) {
+                stringRedisTemplate.opsForSet().remove(sessionSetKey, "tok_" + tokenId);
+            }
+            if (refreshToken != null) {
+                stringRedisTemplate.opsForSet().remove(sessionSetKey, refreshToken);
+            }
+        }
+
+        // 删除 refresh_token
         if (refreshToken != null) {
             stringRedisTemplate.delete(REFRESH_TOKEN_PREFIX + refreshToken);
+        }
+
+        // 删除 session
+        if (tokenId != null) {
+            stringRedisTemplate.delete(SESSION_PREFIX + tokenId);
         }
     }
 
@@ -159,11 +191,38 @@ public class AppAuthServiceImpl implements AppAuthService {
         return token;
     }
 
-    private void saveAppSession(String tokenId, Long userId, String openId) {
+    private void saveAppSession(String tokenId, Long userId, String openId, String refreshToken) {
+        // 保存 session 信息
         stringRedisTemplate.opsForValue().set(
                 SESSION_PREFIX + tokenId,
                 userId + ":" + openId,
                 jwtProperties.getRefreshExpiration(),
                 TimeUnit.MILLISECONDS);
+
+        // 维护用户 sessions SET，用于强制下线
+        String sessionSetKey = USER_SESSIONS_PREFIX + userId;
+        stringRedisTemplate.opsForSet().add(sessionSetKey, "tok_" + tokenId);
+        stringRedisTemplate.opsForSet().add(sessionSetKey, refreshToken);
+        stringRedisTemplate.expire(sessionSetKey, jwtProperties.getRefreshExpiration(), TimeUnit.MILLISECONDS);
+    }
+
+    private String parseTokenIdFromAccessToken(String accessToken) {
+        SecretKey key = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8));
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(accessToken)
+                .getPayload();
+        return claims.get("tokenId", String.class);
+    }
+
+    private String parseUserIdFromAccessToken(String accessToken) {
+        SecretKey key = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8));
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(accessToken)
+                .getPayload();
+        return claims.getSubject();
     }
 }
