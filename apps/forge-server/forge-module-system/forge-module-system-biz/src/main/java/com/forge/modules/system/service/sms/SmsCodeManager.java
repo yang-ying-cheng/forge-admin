@@ -59,10 +59,11 @@ public class SmsCodeManager {
      * 5. 清除错误计数：新发送验证码时清除之前的错误计数
      *
      * @param phone 手机号
+     * @return 生成的验证码
      * @throws BusinessException SMS_COOLDOWN - 验证码发送冷却中
      * @throws BusinessException SMS_DAILY_EXCEEDED - 今日发送次数已达上限
      */
-    public void sendCode(String phone) {
+    public String sendCode(String phone) {
         // 1. 冷却检查
         String lockKey = LOCK_KEY + phone;
         if (redis.hasKey(lockKey)) {
@@ -93,6 +94,8 @@ public class SmsCodeManager {
 
         // 5. 清除错误计数
         redis.delete(ERROR_KEY + phone);
+
+        return code;
     }
 
     /**
