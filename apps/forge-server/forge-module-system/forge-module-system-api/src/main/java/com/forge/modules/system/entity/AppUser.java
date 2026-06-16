@@ -28,6 +28,10 @@ public class AppUser {
 
     private String phone;
 
+    private Integer phoneVerified;
+
+    private LocalDateTime deactivatedTime;
+
     private Integer status;
 
     private LocalDateTime lastLoginTime;
