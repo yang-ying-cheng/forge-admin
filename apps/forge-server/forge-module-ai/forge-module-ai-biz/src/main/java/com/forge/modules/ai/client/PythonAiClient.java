@@ -5,6 +5,7 @@ import com.forge.modules.ai.dto.request.DocumentSummaryRequest;
 import com.forge.modules.ai.dto.response.ChatResponse;
 import com.forge.modules.ai.dto.response.DocumentResponse;
 import com.forge.modules.ai.dto.response.ModelListResponse;
+import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Flux;
 
 import java.util.Map;
@@ -30,9 +31,14 @@ public interface PythonAiClient {
     DocumentResponse summarize(DocumentSummaryRequest request);
 
     /**
-     * 解析文档
+     * 解析文档（通过文件路径）
      */
     DocumentResponse parseDocument(Long documentId, String filePath);
+
+    /**
+     * 解析文档（通过上传文件）
+     */
+    DocumentResponse parseDocumentFile(Long documentId, MultipartFile file);
 
     /**
      * 获取可用模型列表

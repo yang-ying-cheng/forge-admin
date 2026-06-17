@@ -109,6 +109,10 @@ class SummarizeResponse(BaseModel):
     model: str
     original_length: int
     summary_length: int
+    # 添加以下字段以匹配 Java 端的 DocumentResponse
+    status: int = 1  # 1-成功 2-失败
+    modelName: Optional[str] = None  # 与 Java 端保持一致
+    errorMessage: Optional[str] = None
 
 
 # ============== Provider Info ==============

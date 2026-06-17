@@ -31,8 +31,14 @@ class QwenAdapter(BaseLLMAdapter):
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
+            # 添加错误处理
+            if response.status_code != 200:
+                error_text = response.text
+                raise ValueError(f"Qwen API error {response.status_code}: {error_text}")
+            try:
+                data = response.json()
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Qwen API returned invalid JSON: {response.text}") from e
 
         return self._parse_response(data)
 
@@ -53,7 +59,11 @@ class QwenAdapter(BaseLLMAdapter):
         data:{...output.choices[0].message.content...}
         """
         url = f"{self.api_base}/services/aigc/text-generation/generation"
-        headers = self._build_headers()
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+        }
         payload = self._build_payload(messages, temperature, max_tokens, stream=True, **kwargs)
 
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -92,7 +102,6 @@ class QwenAdapter(BaseLLMAdapter):
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "Accept": "text/event-stream",
         }
 
     def _build_payload(

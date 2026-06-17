@@ -151,8 +151,11 @@ public class AiDocumentServiceImpl implements AiDocumentService {
 
         DocumentSummaryRequest request = new DocumentSummaryRequest();
         request.setDocumentId(documentId);
+        request.setText(document.getContent());  // 传递文档内容
+        request.setProvider(defaultModel.getProvider());  // 直接使用 provider 字段
         request.setModelName(defaultModel.getModelCode());
-        request.setSummaryType("brief");
+        request.setStyle("brief");
+        request.setMaxLength(500);
 
         DocumentResponse response = pythonAiClient.summarize(request);
 

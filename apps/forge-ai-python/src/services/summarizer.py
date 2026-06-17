@@ -63,6 +63,8 @@ class Summarizer:
             model=response.model,
             original_length=len(text),
             summary_length=len(summary),
+            status=1,  # 成功
+            modelName=response.model,  # 与 Java 端保持一致
         )
 
     async def summarize_with_questions(

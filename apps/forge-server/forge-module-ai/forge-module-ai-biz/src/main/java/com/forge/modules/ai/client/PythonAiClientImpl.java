@@ -9,10 +9,14 @@ import com.forge.modules.ai.dto.response.DocumentResponse;
 import com.forge.modules.ai.dto.response.ModelListResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -108,10 +112,25 @@ public class PythonAiClientImpl implements PythonAiClient {
     @Override
     public DocumentResponse summarize(DocumentSummaryRequest request) {
         try {
+            // 构建 Python 期望的请求格式
+            Map<String, Object> pythonRequest = new HashMap<>();
+            pythonRequest.put("text", request.getText());
+
+            // 优先使用 provider 字段，否则从 modelName 推断
+            String provider = request.getProvider();
+            if (provider == null || provider.isEmpty()) {
+                provider = inferProviderFromModelName(request.getModelName());
+            }
+            pythonRequest.put("provider", provider);
+
+            // 映射字段名称
+            pythonRequest.put("style", request.getStyle());
+            pythonRequest.put("max_length", request.getMaxLength());
+
             return webClient.post()
                     .uri("/api/document/summarize")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .bodyValue(request)
+                    .bodyValue(pythonRequest)
                     .retrieve()
                     .bodyToMono(DocumentResponse.class)
                     .block();
@@ -140,6 +159,36 @@ public class PythonAiClientImpl implements PythonAiClient {
                     .block();
         } catch (Exception e) {
             log.error("调用Python AI服务parse接口失败: {}", e.getMessage());
+            DocumentResponse errorResponse = new DocumentResponse();
+            errorResponse.setStatus(2);
+            errorResponse.setErrorMessage(e.getMessage());
+            return errorResponse;
+        }
+    }
+
+    @Override
+    public DocumentResponse parseDocumentFile(Long documentId, MultipartFile file) {
+        try {
+            // 使用 MultipartBodyBuilder 构建 multipart/form-data 请求
+            MultipartBodyBuilder bodyBuilder = new MultipartBodyBuilder();
+
+            if (documentId != null) {
+                bodyBuilder.part("documentId", documentId.toString());
+            }
+
+            bodyBuilder.part("file", file.getResource())
+                    .filename(file.getOriginalFilename() != null ? file.getOriginalFilename() : "unknown")
+                    .contentType(MediaType.parseMediaType(file.getContentType() != null ? file.getContentType() : "application/octet-stream"));
+
+            return webClient.post()
+                    .uri("/api/document/parse")
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .bodyValue(bodyBuilder.build())
+                    .retrieve()
+                    .bodyToMono(DocumentResponse.class)
+                    .block();
+        } catch (Exception e) {
+            log.error("调用Python AI服务parse接口（文件上传）失败: {}", e.getMessage());
             DocumentResponse errorResponse = new DocumentResponse();
             errorResponse.setStatus(2);
             errorResponse.setErrorMessage(e.getMessage());
