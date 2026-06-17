@@ -130,7 +130,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { VxeTableInstance, VxeToolbarInstance } from 'vxe-table'
-import { getDocumentList, getDocumentDetail, getDocumentSummary, uploadDocument, deleteDocument, batchDeleteDocuments } from '@/api/ai/document'
+import { getDocumentList, getDocumentDetail, getDocumentSummary, uploadDocument, deleteDocument } from '@/api/ai/document'
 import type { DocumentResponse, DocumentQuery } from '@/api/ai/document'
 import { formatDateTime } from '@/utils/dateFormat'
 import { useTableHeight } from '@/composables/useTableHeight'
