@@ -15,6 +15,7 @@ import com.forge.common.json.TimestampLocalDateTimeDeserializer;
 import com.forge.common.json.TimestampLocalDateTimeSerializer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -35,9 +36,10 @@ public class JacksonConfig {
 
     /**
      * 创建自定义的 ObjectMapper，覆盖默认配置
+     * 使用 ConditionalOnMissingBean 避免 bean 冲突
      */
     @Bean
-    @Primary
+    @ConditionalOnMissingBean(ObjectMapper.class)
     public ObjectMapper objectMapper() {
         // 创建 SimpleModule 对象
         SimpleModule simpleModule = new SimpleModule();
