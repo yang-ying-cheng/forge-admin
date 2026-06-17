@@ -5,12 +5,10 @@ import com.forge.common.response.PageResult;
 import com.forge.common.response.Result;
 import com.forge.framework.web.annotation.OperationLog;
 import com.forge.modules.ai.dto.request.DocumentQueryRequest;
-import com.forge.modules.ai.dto.request.DocumentSummaryRequest;
 import com.forge.modules.ai.dto.response.DocumentResponse;
 import com.forge.modules.ai.service.AiDocumentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -61,15 +59,6 @@ public class AiDocumentController {
     @OperationLog(title = "AI文档管理", businessType = OperationLog.BusinessType.OTHER)
     public Result<DocumentResponse> summarizeDocument(@PathVariable Long id) {
         DocumentResponse response = aiDocumentService.generateSummary(id);
-        return Result.success(response);
-    }
-
-    @Operation(summary = "生成文档摘要")
-    @PostMapping("/summary")
-    @PreAuthorize("hasAuthority('ai:document:summary')")
-    @OperationLog(title = "AI文档管理", businessType = OperationLog.BusinessType.OTHER)
-    public Result<DocumentResponse> summarizeDocument(@Valid @RequestBody DocumentSummaryRequest request) {
-        DocumentResponse response = aiDocumentService.summarize(request);
         return Result.success(response);
     }
 
