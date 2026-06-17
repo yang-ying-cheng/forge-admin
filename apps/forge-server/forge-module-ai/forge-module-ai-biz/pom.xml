@@ -25,6 +25,10 @@
         </dependency>
         <dependency>
             <groupId>com.forge</groupId>
+            <artifactId>forge-module-system-biz</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.forge</groupId>
             <artifactId>forge-spring-boot-starter-mybatis</artifactId>
         </dependency>
         <dependency>
