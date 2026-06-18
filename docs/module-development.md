@@ -1043,6 +1043,51 @@ onMounted(() => {
 
 ### 2.6 树形表格配置
 
+**重要：后端接口数据规范**
+
+树形表格接口必须返回**平铺的完整 List 数据**，由前端自动渲染树形结构：
+
+| 做法 | 说明 |
+|------|------|
+| ❌ 后端组装 tree | 不要在后端组装 `children` 嵌套结构 |
+| ✅ 后端返回平铺 List | 返回所有记录（含 `id`、`parentId` 字段） |
+| ✅ 前端自动渲染树形 | vxe-table 根据 `rowField` + `parentField` 自动构建 |
+
+**正确示例：**
+
+```json
+// 后端返回（平铺 List）
+[
+  {"id": 1, "parentId": 0, "dirName": "01"},
+  {"id": 2, "parentId": 0, "dirName": "02"},
+  {"id": 3, "parentId": 1, "dirName": "01-1"}
+]
+
+// 前端 tree-config 自动渲染为：
+// 01
+//   └─ 01-1
+// 02
+```
+
+**后端 Service 实现：**
+
+```java
+// 正确做法：直接返回平铺列表
+public List<XxxResponse> getTreeList() {
+    return lambdaQuery()
+            .orderByAsc(XxxEntity::getSortOrder)
+            .list()
+            .stream()
+            .map(this::toResponse)
+            .collect(Collectors.toList());
+}
+
+// 错误做法：不要组装 children 结构
+// ❌ response.setChildren(childrenList);
+```
+
+**前端配置：**
+
 ```vue
 <vxe-table
   :tree-config="{
