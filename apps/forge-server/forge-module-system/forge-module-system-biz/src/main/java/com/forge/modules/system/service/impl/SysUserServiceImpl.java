@@ -59,6 +59,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final com.forge.modules.system.auth.util.PasswordValidator passwordValidator;
     private final com.forge.modules.system.auth.properties.PasswordPolicyProperties passwordPolicyProperties;
     private final com.forge.modules.system.service.SysUserPasswordHistoryService passwordHistoryService;
+    private final com.forge.modules.system.auth.util.CryptoUtils cryptoUtils;
 
     @Override
     @DataPermission(enable = false) // 禁用数据权限，避免循环依赖
@@ -217,13 +218,24 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
-    public void resetPassword(Long id) {
+    @Transactional(rollbackFor = Exception.class)
+    public String resetPassword(Long id) {
         SysUser user = getById(id);
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
-        user.setPassword(passwordEncoder.encode("123456"));
+        // 生成符合复杂度的随机密码，强制下次登录修改
+        String randomPassword = cryptoUtils.generateRandomPassword(passwordPolicyProperties.getRandomPasswordLength());
+        user.setPassword(passwordEncoder.encode(randomPassword));
+        user.setPasswordUpdateTime(java.time.LocalDateTime.now());
+        user.setFirstLogin(1);
+        user.setPasswordErrorCount(0);
+        user.setLockTime(null);
         updateById(user);
+        // 重置后清除历史，避免新密码被旧历史拦截
+        passwordHistoryService.remove(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.forge.modules.system.entity.SysUserPasswordHistory>()
+                .eq(com.forge.modules.system.entity.SysUserPasswordHistory::getUserId, id));
+        return randomPassword;
     }
 
     @Override
@@ -422,7 +434,10 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                     // 新增用户
                     SysUser user = new SysUser();
                     BeanUtil.copyProperties(importUser, user);
-                    user.setPassword(passwordEncoder.encode("123456"));
+                    String defaultPassword = cryptoUtils.generateRandomPassword(passwordPolicyProperties.getRandomPasswordLength());
+                    user.setPassword(passwordEncoder.encode(defaultPassword));
+                    user.setPasswordUpdateTime(java.time.LocalDateTime.now());
+                    user.setFirstLogin(1);
                     if (user.getStatus() == null) {
                         user.setStatus(1);
                     }
