@@ -134,4 +134,64 @@ public class LoginUserSessionServiceImpl implements LoginUserSessionService {
             log.debug("更新心跳: tokenId={}, username={}", tokenId, session.getUsername());
         }
     }
+
+    @Override
+    public List<LoginUserSession> getSessionsByUsername(String username) {
+        List<LoginUserSession> result = new ArrayList<>();
+        if (username == null || username.isEmpty()) {
+            return result;
+        }
+
+        Set<String> keys = redisTemplate.keys(LOGIN_TOKEN_KEY + "*");
+        if (keys == null || keys.isEmpty()) {
+            return result;
+        }
+
+        for (String key : keys) {
+            Object value = redisTemplate.opsForValue().get(key);
+            LoginUserSession session = convertToSession(value);
+            if (session != null && username.equals(session.getUsername())) {
+                result.add(session);
+            }
+        }
+
+        result.sort((a, b) -> Long.compare(b.getLoginTime(), a.getLoginTime()));
+        return result;
+    }
+
+    @Override
+    public int kickOutUserSessions(String username, String excludeTokenId) {
+        List<LoginUserSession> sessions = getSessionsByUsername(username);
+        int kicked = 0;
+        for (LoginUserSession session : sessions) {
+            if (excludeTokenId != null && excludeTokenId.equals(session.getTokenId())) {
+                continue;
+            }
+            String key = LOGIN_TOKEN_KEY + session.getTokenId();
+            redisTemplate.delete(key);
+            kicked++;
+            log.info("单点登录踢出旧会话: username={}, tokenId={}", username, session.getTokenId());
+        }
+        return kicked;
+    }
+
+    /**
+     * 将 Redis 中的值转换为 LoginUserSession
+     */
+    private LoginUserSession convertToSession(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LoginUserSession session) {
+            return session;
+        }
+        if (value instanceof Map map) {
+            try {
+                return objectMapper.convertValue(map, LoginUserSession.class);
+            } catch (Exception e) {
+                log.warn("转换登录会话失败: error={}", e.getMessage());
+            }
+        }
+        return null;
+    }
 }
