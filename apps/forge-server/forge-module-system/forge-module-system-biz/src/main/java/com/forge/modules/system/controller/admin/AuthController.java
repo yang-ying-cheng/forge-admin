@@ -172,6 +172,12 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "获取验证码")
+    @GetMapping("/captcha")
+    public Result<com.forge.modules.system.auth.dto.CaptchaResponse> getCaptcha() {
+        return Result.success(captchaService.generate());
+    }
+
     @Operation(summary = "获取当前用户信息")
     @GetMapping("/userinfo")
     public Result<UserInfoResponse> getUserInfo() {
