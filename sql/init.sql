@@ -360,8 +360,8 @@ CREATE TABLE `sys_user` (
   `username` varchar(50) NOT NULL COMMENT '用户名',
   `nickname` varchar(50) DEFAULT NULL COMMENT '昵称',
   `password` varchar(100) NOT NULL COMMENT '密码',
-  `phone` varchar(20) DEFAULT NULL COMMENT '手机号',
-  `email` varchar(100) DEFAULT NULL COMMENT '邮箱',
+  `phone` varchar(20) DEFAULT NULL COMMENT '手机号（加密存储）',
+  `email` varchar(100) DEFAULT NULL COMMENT '邮箱（加密存储）',
   `avatar` varchar(255) DEFAULT NULL COMMENT '头像',
   `dept_id` bigint DEFAULT NULL COMMENT '部门ID',
   `position_id` bigint DEFAULT NULL COMMENT '岗位ID',
@@ -369,13 +369,19 @@ CREATE TABLE `sys_user` (
   `status` tinyint DEFAULT '1' COMMENT '状态(0:禁用 1:启用)',
   `last_login_time` datetime DEFAULT NULL COMMENT '最后登录时间',
   `last_login_ip` varchar(50) DEFAULT NULL COMMENT '最后登录IP',
+  `password_update_time` datetime DEFAULT NULL COMMENT '密码最后修改时间',
+  `first_login` tinyint NOT NULL DEFAULT 0 COMMENT '是否首次登录需强制改密(0:否 1:是)',
+  `password_error_count` int NOT NULL DEFAULT 0 COMMENT '连续登录失败次数',
+  `lock_time` datetime DEFAULT NULL COMMENT '账号锁定截止时间',
+  `phone_suffix` varchar(4) DEFAULT NULL COMMENT '手机号后4位（明文，便于精确查询）',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` tinyint DEFAULT '0' COMMENT '删除标记',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_username` (`username`),
   KEY `idx_dept_id` (`dept_id`),
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  KEY `idx_lock_time` (`lock_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- ========================================
@@ -401,6 +407,19 @@ CREATE TABLE `sys_user_position` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_position` (`user_id`,`position_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户岗位关联表';
+
+-- ========================================
+-- 19.1 用户密码历史表（等保二级：密码不可与最近N条历史重复）
+-- ========================================
+DROP TABLE IF EXISTS `sys_user_password_history`;
+CREATE TABLE `sys_user_password_history` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `user_id` bigint NOT NULL COMMENT '用户ID',
+  `password` varchar(100) NOT NULL COMMENT 'BCrypt 哈希',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id_create_time` (`user_id`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户密码历史';
 
 -- ========================================
 -- 20. 社交账号绑定表
@@ -569,8 +588,11 @@ INSERT INTO `sys_position` (`id`, `position_name`, `position_code`, `sort_order`
 (4, '测试工程师', 'QA', 4, 1);
 
 -- 初始化用户 (密码: password)
-INSERT INTO `sys_user` (`id`, `username`, `nickname`, `password`, `phone`, `email`, `dept_id`, `account_type`, `status`) VALUES
-(1, 'admin', '超级管理员', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', '13800000000', 'admin@standadmin.com', 1, 1, 1);
+INSERT INTO `sys_user` (`id`, `username`, `nickname`, `password`, `phone`, `email`, `dept_id`, `account_type`, `status`, `password_update_time`) VALUES
+(1, 'admin', '超级管理员', '$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG', '13800000000', 'admin@standadmin.com', 1, 1, 1, NOW());
+
+-- 现有用户标记 password_update_time = NOW()，避免立即触发密码过期
+UPDATE `sys_user` SET `password_update_time` = NOW() WHERE `password_update_time` IS NULL;
 
 -- 初始化角色
 INSERT INTO `sys_role` (`id`, `role_name`, `role_code`, `description`, `is_fixed`, `status`, `data_scope`, `sort_order`) VALUES
