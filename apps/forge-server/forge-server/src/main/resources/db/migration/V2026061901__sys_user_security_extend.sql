@@ -6,6 +6,7 @@ ALTER TABLE `sys_user`
     ADD COLUMN `first_login` TINYINT NOT NULL DEFAULT 0 COMMENT '是否首次登录需强制改密(0:否 1:是)' AFTER `password_update_time`,
     ADD COLUMN `password_error_count` INT NOT NULL DEFAULT 0 COMMENT '连续登录失败次数' AFTER `first_login`,
     ADD COLUMN `lock_time` DATETIME DEFAULT NULL COMMENT '账号锁定截止时间' AFTER `password_error_count`,
+    ADD COLUMN `phone_suffix` VARCHAR(4) DEFAULT NULL COMMENT '手机号后4位（明文，便于精确查询）' AFTER `lock_time`,
     ADD INDEX `idx_lock_time` (`lock_time`);
 
 -- 现有用户标记 password_update_time = NOW()，避免立即触发密码过期
