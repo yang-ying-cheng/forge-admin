@@ -213,11 +213,12 @@ public class AuthController {
             loginAttemptService.recordFailure(username);
             // 记录登录失败日志
             sysLoginLogService.recordLoginLog(username, 0, "用户名或密码错误", loginIp, userAgent);
-            throw e;
+            // 返回业务错误（HTTP 200 + code 5102），避免前端误判为 token 过期触发刷新流程
+            return Result.failed(5102, "用户名或密码错误");
         } catch (Exception e) {
             // 记录登录失败日志
             sysLoginLogService.recordLoginLog(username, 0, "登录失败：" + e.getMessage(), loginIp, userAgent);
-            throw e;
+            return Result.failed("登录失败：" + e.getMessage());
         }
     }
 
