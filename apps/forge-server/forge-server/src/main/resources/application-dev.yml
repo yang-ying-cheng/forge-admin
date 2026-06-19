@@ -45,4 +45,4 @@ logging:
 forge:
   security:
     captcha:
-      enabled: false
+      enabled: true
