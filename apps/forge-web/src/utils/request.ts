@@ -64,6 +64,8 @@ const handleLogout = (errorMessage?: string) => {
   if (isHandlingExpired) return
   isHandlingExpired = true
 
+  // 关闭其他所有消息提示，避免并发请求各自弹窗造成视觉污染
+  ElMessage.closeAll()
   ElMessage.error(errorMessage || '登录已过期，请重新登录')
 
   const userStore = useUserStore()
@@ -230,7 +232,8 @@ service.interceptors.response.use(
         })
     }
 
-    if (!isSilent) {
+    // 正在处理过期状态时，不弹额外错误（由 handleLogout 统一提示）
+    if (!isSilent && !isHandlingExpired) {
       let message = '请求失败'
       if (error.response) {
         switch (error.response.status) {
