@@ -138,6 +138,7 @@ public class AuthController {
                     .os(os)
                     .loginTime(currentTime)
                     .lastActiveTime(currentTime)
+                    .refreshToken(refreshToken)
                     .build();
             loginUserSessionService.saveSession(session, jwtProperties.getRefreshExpiration());
 
