@@ -127,19 +127,24 @@ const service: AxiosInstance = axios.create({
 // 请求拦截器
 service.interceptors.request.use(
   (config) => {
-    // 已在处理过期状态，拒绝所有新请求
+    const url = config.url || ''
+
+    // 公开接口白名单：登录、刷新、验证码 —— 始终放行，不检查过期状态
+    const isPublicApi = url.includes('/auth/login')
+      || url.includes('/auth/refresh')
+      || url.includes('/auth/captcha')
+
+    if (isPublicApi) {
+      return config
+    }
+
+    // 已在处理过期状态，拒绝其他请求（避免并发刷新）
     if (isHandlingExpired) {
       return Promise.reject(new Error('登录已过期'))
     }
 
     const userStore = useUserStore()
     if (!userStore.token) return config
-
-    // 白名单接口不需要检查过期（刷新接口自身）
-    const url = config.url || ''
-    if (url.includes('/auth/refresh') || url.includes('/auth/login')) {
-      return config
-    }
 
     // token 未过期，正常添加 header
     if (!isTokenExpired()) {
