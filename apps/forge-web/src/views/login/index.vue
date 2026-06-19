@@ -117,7 +117,15 @@ const refreshCaptcha = async () => {
   }
 }
 
+// 清除可能残留的旧登录状态（避免旧 token 干扰登录）
+const clearStaleAuth = () => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
+  localStorage.removeItem('tokenExpireTime')
+}
+
 onMounted(() => {
+  clearStaleAuth()
   refreshCaptcha()
 })
 
