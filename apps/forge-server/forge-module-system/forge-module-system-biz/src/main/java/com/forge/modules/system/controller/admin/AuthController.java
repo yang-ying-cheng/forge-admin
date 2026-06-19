@@ -10,6 +10,8 @@ import com.forge.modules.system.auth.dto.LoginResponse;
 import com.forge.modules.system.auth.dto.RefreshTokenRequest;
 import com.forge.modules.system.auth.dto.UserInfoResponse;
 import com.forge.modules.system.auth.security.JwtTokenProvider;
+import com.forge.modules.system.auth.service.CaptchaService;
+import com.forge.modules.system.auth.service.LoginAttemptService;
 import com.forge.modules.system.auth.service.RefreshTokenService;
 import com.forge.modules.system.dto.menu.MenuTreeResponse;
 import com.forge.modules.system.dto.online.LoginUserSession;
@@ -54,36 +56,63 @@ public class AuthController {
     private final SysLoginLogService sysLoginLogService;
     private final RefreshTokenService refreshTokenService;
     private final LoginUserSessionService loginUserSessionService;
+    private final CaptchaService captchaService;
+    private final LoginAttemptService loginAttemptService;
 
         @Operation(summary = "登录")
     @PostMapping("/login")
     @RateLimiter(keyType = RateLimiter.KeyType.USERNAME, time = 60, count = 20, message = "登录请求过于频繁，请稍后再试")
-        public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+    public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         // 在 try 之前提取客户端信息，确保 catch 中也能访问
         String loginIp = com.forge.common.utils.IpUtils.getClientIp(httpRequest);
         String userAgent = httpRequest.getHeader("User-Agent");
+        String username = request.getUsername();
+
+        // 1. 检查账户锁定状态
+        if (loginAttemptService.isLocked(username)) {
+            long remainingSeconds = loginAttemptService.getRemainingLockSeconds(username);
+            sysLoginLogService.recordLoginLog(username, 0, "账户已锁定，剩余" + remainingSeconds + "秒", loginIp, userAgent);
+            return Result.failed("账户已锁定，请" + (remainingSeconds / 60 + 1) + "分钟后重试");
+        }
+
+        // 2. 校验验证码
+        if (!captchaService.validate(request.getCaptchaId(), request.getCaptchaCode())) {
+            sysLoginLogService.recordLoginLog(username, 0, "验证码错误", loginIp, userAgent);
+            return Result.failed("验证码错误或已过期");
+        }
 
         try {
             // 认证
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+                    new UsernamePasswordAuthenticationToken(username, request.getPassword())
             );
 
             // 获取用户信息
-            SysUser user = sysUserService.getByUsername(request.getUsername());
+            SysUser user = sysUserService.getByUsername(username);
             if (user == null) {
+                loginAttemptService.recordFailure(username);
                 return Result.failed("用户不存在");
+            }
+
+            // 3. 检查首次登录强制改密
+            if (user.getFirstLogin() != null && user.getFirstLogin() == 1) {
+                // 返回特殊响应，提示前端跳转改密页
+                LoginResponse response = LoginResponse.builder()
+                        .needChangePassword(true)
+                        .message("首次登录请修改密码")
+                        .build();
+                return Result.success(response);
             }
 
             // 生成 tokenId
             String tokenId = java.util.UUID.randomUUID().toString().replace("-", "");
 
             // 生成 Access Token（使用相同的 tokenId 关联会话）
-            String accessToken = jwtTokenProvider.generateTokenWithId(request.getUsername(), tokenId);
+            String accessToken = jwtTokenProvider.generateTokenWithId(username, tokenId);
 
             // 生成 Refresh Token
             String refreshToken = refreshTokenService.generateRefreshToken(
-                    request.getUsername(),
+                    username,
                     jwtProperties.getRefreshExpiration()
             );
 
@@ -108,8 +137,11 @@ public class AuthController {
                     .build();
             loginUserSessionService.saveSession(session, jwtProperties.getRefreshExpiration());
 
+            // 4. 记录登录成功，清除失败计数
+            loginAttemptService.recordSuccess(username);
+
             // 记录登录成功日志
-            sysLoginLogService.recordLoginLog(request.getUsername(), 1, "登录成功", loginIp, userAgent);
+            sysLoginLogService.recordLoginLog(username, 1, "登录成功", loginIp, userAgent);
 
             LoginResponse response = LoginResponse.builder()
                     .accessToken(accessToken)
@@ -128,12 +160,14 @@ public class AuthController {
 
             return Result.success(response);
         } catch (BadCredentialsException e) {
+            // 5. 记录登录失败，增加失败计数
+            loginAttemptService.recordFailure(username);
             // 记录登录失败日志
-            sysLoginLogService.recordLoginLog(request.getUsername(), 0, "用户名或密码错误", loginIp, userAgent);
+            sysLoginLogService.recordLoginLog(username, 0, "用户名或密码错误", loginIp, userAgent);
             throw e;
         } catch (Exception e) {
             // 记录登录失败日志
-            sysLoginLogService.recordLoginLog(request.getUsername(), 0, "登录失败：" + e.getMessage(), loginIp, userAgent);
+            sysLoginLogService.recordLoginLog(username, 0, "登录失败：" + e.getMessage(), loginIp, userAgent);
             throw e;
         }
     }

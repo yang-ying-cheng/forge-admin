@@ -47,4 +47,16 @@ public class LoginResponse {
      */
     @Schema(description = "刷新令牌过期时间（毫秒）", example = "604800000")
     private Long refreshExpiresIn;
+
+    /**
+     * 是否需要修改密码（首次登录）
+     */
+    @Schema(description = "是否需要修改密码", example = "false")
+    private Boolean needChangePassword;
+
+    /**
+     * 提示消息
+     */
+    @Schema(description = "提示消息", example = "首次登录请修改密码")
+    private String message;
 }
