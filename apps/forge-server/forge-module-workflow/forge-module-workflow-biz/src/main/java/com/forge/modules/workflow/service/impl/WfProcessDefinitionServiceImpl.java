@@ -1,8 +1,16 @@
 package com.forge.modules.workflow.service.impl;
 
 import cn.hutool.core.util.StrUtil;
+import com.aizuda.bpm.engine.ProcessService;
+import com.aizuda.bpm.engine.QueryService;
+import com.aizuda.bpm.engine.core.FlowCreator;
+import com.aizuda.bpm.engine.core.enums.FlowState;
+import com.aizuda.bpm.engine.entity.FlwProcess;
+import com.aizuda.bpm.mybatisplus.mapper.FlwInstanceMapper;
+import com.aizuda.bpm.mybatisplus.mapper.FlwProcessMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.forge.common.exception.BusinessException;
 import com.forge.common.utils.SecurityUtils;
 import com.forge.modules.workflow.dto.definition.ProcessDefinitionQueryRequest;
@@ -10,37 +18,26 @@ import com.forge.modules.workflow.dto.definition.ProcessDefinitionResponse;
 import com.forge.modules.workflow.dto.definition.ProcessDeployRequest;
 import com.forge.modules.workflow.dto.definition.UserTaskNodeResponse;
 import com.forge.modules.workflow.entity.WfCategory;
-import com.forge.modules.workflow.entity.WfProcessDeployExt;
-import com.forge.modules.workflow.framework.candidate.CandidateStrategyEnum;
+import com.forge.modules.workflow.entity.WfProcessExt;
+import com.forge.modules.workflow.framework.diagram.FlowLongDiagramGenerator;
+import com.forge.modules.workflow.identity.FlowLongIdentityService;
 import com.forge.modules.workflow.mapper.WfCategoryMapper;
-import com.forge.modules.workflow.mapper.WfProcessDeployExtMapper;
+import com.forge.modules.workflow.mapper.WfProcessExtMapper;
 import com.forge.modules.workflow.service.WfProcessDefinitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.flowable.bpmn.model.BpmnModel;
-import org.flowable.bpmn.model.FlowableListener;
-import org.flowable.bpmn.model.UserTask;
-import org.flowable.engine.RepositoryService;
-import org.flowable.engine.repository.Deployment;
-import org.flowable.engine.repository.ProcessDefinition;
-import org.flowable.engine.repository.ProcessDefinitionQuery;
-import org.flowable.image.ProcessDiagramGenerator;
-import org.flowable.image.impl.DefaultProcessDiagramGenerator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 流程定义管理服务实现
+ * 流程定义管理服务实现 - FlowLong 版本
  *
  * @author forge-admin
  */
@@ -49,150 +46,116 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionService {
 
-    private final RepositoryService repositoryService;
-    private final WfProcessDeployExtMapper wfProcessDeployExtMapper;
-    private final WfCategoryMapper wfCategoryMapper;
-
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private final ProcessService processService;
+    private final QueryService queryService;
+    private final FlwProcessMapper processMapper;
+    private final FlwInstanceMapper instanceMapper;
+    private final FlowLongDiagramGenerator diagramGenerator;
+    private final WfProcessExtMapper processExtMapper;
+    private final WfCategoryMapper categoryMapper;
+    private final FlowLongIdentityService identityService;
+    private final ObjectMapper objectMapper;
 
     @Override
     public Page<ProcessDefinitionResponse> pageDefinition(ProcessDefinitionQueryRequest request) {
-        // 构建查询条件
-        ProcessDefinitionQuery query = repositoryService.createProcessDefinitionQuery()
-                .latestVersion();
+        // 查询 flw_process 表获取流程定义
+        LambdaQueryWrapper<FlwProcess> wrapper = new LambdaQueryWrapper<>();
 
-        if (StrUtil.isNotBlank(request.getName())) {
-            query.processDefinitionNameLike("%" + request.getName() + "%");
-        }
-        if (StrUtil.isNotBlank(request.getKey())) {
-            query.processDefinitionKey(request.getKey());
-        }
+        // 根据前端传入的状态参数过滤
+        // suspensionState: 1=激活, 2=挂起, null=全部
         if (request.getSuspensionState() != null) {
             if (request.getSuspensionState() == 1) {
-                query.active();
+                // 激活状态
+                wrapper.eq(FlwProcess::getProcessState, FlowState.active.getValue());
             } else if (request.getSuspensionState() == 2) {
-                query.suspended();
+                // 挂起状态
+                wrapper.eq(FlwProcess::getProcessState, FlowState.inactive.getValue());
             }
         }
+        // 如果 suspensionState 为 null，不添加状态过滤条件，查询所有状态
 
-        // 获取所有流程定义（不使用 Flowable 的分页，因为需要按扩展信息排序）
-        List<ProcessDefinition> allDefinitions = query.list();
-
-        if (allDefinitions.isEmpty()) {
-            Page<ProcessDefinitionResponse> emptyPage = new Page<>();
-            emptyPage.setCurrent(request.getPageNum());
-            emptyPage.setSize(request.getPageSize());
-            emptyPage.setTotal(0L);
-            emptyPage.setRecords(Collections.emptyList());
-            return emptyPage;
+        if (StrUtil.isNotBlank(request.getName())) {
+            wrapper.like(FlwProcess::getProcessName, request.getName());
+        }
+        if (StrUtil.isNotBlank(request.getKey())) {
+            wrapper.eq(FlwProcess::getProcessKey, request.getKey());
         }
 
-        // 批量获取部署扩展信息
-        List<String> deploymentIds = allDefinitions.stream()
-                .map(ProcessDefinition::getDeploymentId)
-                .distinct()
-                .toList();
-        Map<String, WfProcessDeployExt> extMap = getDeployExtMap(deploymentIds);
+        wrapper.orderByDesc(FlwProcess::getCreateTime);
 
-        // 如果有分类过滤条件，先筛选
-        List<ProcessDefinition> filteredDefinitions = allDefinitions;
-        if (request.getCategoryId() != null) {
-            filteredDefinitions = allDefinitions.stream()
-                    .filter(def -> {
-                        WfProcessDeployExt ext = extMap.get(def.getDeploymentId());
-                        return ext != null && request.getCategoryId().equals(ext.getCategoryId());
-                    })
-                    .toList();
-        }
+        Page<FlwProcess> pageParam = new Page<>(request.getPageNum(), request.getPageSize());
+        Page<FlwProcess> processPage = processMapper.selectPage(pageParam, wrapper);
 
-        // 按创建时间降序排序
-        filteredDefinitions = filteredDefinitions.stream()
-                .sorted((a, b) -> {
-                    WfProcessDeployExt extA = extMap.get(a.getDeploymentId());
-                    WfProcessDeployExt extB = extMap.get(b.getDeploymentId());
-                    if (extA == null && extB == null) return 0;
-                    if (extA == null) return 1;
-                    if (extB == null) return -1;
-                    if (extA.getCreateTime() == null && extB.getCreateTime() == null) return 0;
-                    if (extA.getCreateTime() == null) return 1;
-                    if (extB.getCreateTime() == null) return -1;
-                    return extB.getCreateTime().compareTo(extA.getCreateTime());
-                })
-                .toList();
+        // 获取扩展信息和分类名称
+        Set<Long> processIds = processPage.getRecords().stream()
+                .map(FlwProcess::getId)
+                .collect(Collectors.toSet());
 
-        // 手动分页
-        long total = filteredDefinitions.size();
-        int offset = (request.getPageNum() - 1) * request.getPageSize();
-        int endIndex = Math.min(offset + request.getPageSize(), filteredDefinitions.size());
-        List<ProcessDefinition> pagedDefinitions = filteredDefinitions.subList(offset, endIndex);
+        Map<Long, WfProcessExt> extMap = getProcessExtMap(processIds);
+        Set<Long> categoryIds = extMap.values().stream()
+                .map(WfProcessExt::getCategoryId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> categoryNameMap = getCategoryNameMap(new ArrayList<>(categoryIds));
 
-        // 获取分类名称映射
-        List<Long> categoryIds = extMap.values().stream()
-                .map(WfProcessDeployExt::getCategoryId)
-                .filter(id -> id != null)
-                .distinct()
-                .toList();
-        Map<Long, String> categoryNameMap = getCategoryNameMap(categoryIds);
+        List<ProcessDefinitionResponse> records = processPage.getRecords().stream()
+                .map(process -> convertToResponse(process, extMap.get(process.getId()), categoryNameMap))
+                .collect(Collectors.toList());
 
-        // 转换为响应对象
-        List<ProcessDefinitionResponse> records = pagedDefinitions.stream()
-                .map(def -> convertToResponse(def, extMap.get(def.getDeploymentId()), categoryNameMap))
-                .toList();
-
-        // 组装分页结果
         Page<ProcessDefinitionResponse> resultPage = new Page<>();
-        resultPage.setCurrent(request.getPageNum());
-        resultPage.setSize(request.getPageSize());
-        resultPage.setTotal(total);
+        resultPage.setCurrent(processPage.getCurrent());
+        resultPage.setSize(processPage.getSize());
+        resultPage.setTotal(processPage.getTotal());
         resultPage.setRecords(records);
-
         return resultPage;
     }
 
     @Override
     public ProcessDefinitionResponse getDefinitionById(String processDefinitionId) {
-        ProcessDefinition definition = repositoryService.getProcessDefinition(processDefinitionId);
-        if (definition == null) {
+        Long id = parseProcessId(processDefinitionId);
+
+        FlwProcess process = processService.getProcessById(id);
+        if (process == null) {
             throw new BusinessException(404, "流程定义不存在");
         }
 
-        WfProcessDeployExt ext = getDeployExtByDeploymentId(definition.getDeploymentId());
+        WfProcessExt processExt = getProcessExtByProcessId(id);
         Map<Long, String> categoryNameMap = Collections.emptyMap();
-        if (ext != null && ext.getCategoryId() != null) {
-            categoryNameMap = getCategoryNameMap(List.of(ext.getCategoryId()));
+        if (processExt != null && processExt.getCategoryId() != null) {
+            categoryNameMap = getCategoryNameMap(List.of(processExt.getCategoryId()));
         }
 
-        return convertToResponse(definition, ext, categoryNameMap);
+        return convertToResponse(process, processExt, categoryNameMap);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deploy(ProcessDeployRequest request) {
-        // 部署流程定义
-        Deployment deployment = repositoryService.createDeployment()
-                .addString(request.getName() + ".bpmn20.xml", request.getBpmnXml())
-                .name(request.getName())
-                .deploy();
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        if (currentUserId == null) {
+            throw new BusinessException(401, "未获取到当前用户信息");
+        }
 
-        // 获取新部署的流程定义
-        ProcessDefinition newDefinition = repositoryService.createProcessDefinitionQuery()
-                .deploymentId(deployment.getId())
-                .latestVersion()
-                .singleResult();
+        String userName = identityService.getUserName(currentUserId);
+        FlowCreator flowCreator = createFlowCreator(currentUserId);
 
-        if (newDefinition == null) {
-            // 回滚部署
-            repositoryService.deleteDeployment(deployment.getId(), true);
-            throw new BusinessException(400, "BPMN XML内容无效，未能生成流程定义");
+        // 部署流程（直接使用 FlowLong JSON 格式）
+        InputStream inputStream = new ByteArrayInputStream(request.getModelJson().getBytes(StandardCharsets.UTF_8));
+        Long processId = processService.deploy(inputStream, flowCreator, false, process -> {
+            process.setProcessName(request.getName());
+            process.setProcessType(request.getFormType() != null ? String.valueOf(request.getFormType()) : null);
+            process.setRemark(request.getDescription());
+        });
+
+        // 获取部署后的流程定义
+        FlwProcess process = processService.getProcessById(processId);
+        if (process == null) {
+            throw new BusinessException(400, "流程部署失败");
         }
 
         // 保存扩展信息
-        Long currentUserId = SecurityUtils.getCurrentUserId();
-        String currentUsername = SecurityUtils.getCurrentUsername();
-
-        WfProcessDeployExt ext = new WfProcessDeployExt();
-        ext.setDeploymentId(deployment.getId());
-        ext.setProcessDefinitionId(newDefinition.getId());
+        WfProcessExt ext = new WfProcessExt();
+        ext.setProcessId(processId);
         ext.setProcessKey(request.getKey());
         ext.setProcessName(request.getName());
         ext.setCategoryId(request.getCategoryId());
@@ -201,155 +164,192 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
         ext.setFormId(request.getFormId());
         ext.setAutoCopyStrategy(request.getAutoCopyStrategy());
         ext.setAutoCopyParam(request.getAutoCopyParam());
-        ext.setBpmnXml(request.getBpmnXml());
+        ext.setModelJson(request.getModelJson());
         ext.setCreateBy(currentUserId);
-        ext.setCreateByName(currentUsername);
+        ext.setCreateByName(userName);
         ext.setCreateTime(LocalDateTime.now());
         ext.setUpdateTime(LocalDateTime.now());
         ext.setDeleted(0);
-        wfProcessDeployExtMapper.insert(ext);
+        processExtMapper.insert(ext);
 
-        log.info("流程部署成功：name={}, key={}, deploymentId={}, deployBy={}",
-                request.getName(), request.getKey(), deployment.getId(), currentUsername);
+        log.info("流程部署成功：name={}, key={}, processId={}, deployBy={}",
+                request.getName(), request.getKey(), processId, userName);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void suspendDefinition(String processDefinitionId) {
-        ProcessDefinition definition = repositoryService.getProcessDefinition(processDefinitionId);
-        if (definition == null) {
+        Long id = parseProcessId(processDefinitionId);
+
+        FlwProcess process = processService.getProcessById(id);
+        if (process == null) {
             throw new BusinessException(404, "流程定义不存在");
         }
-        if (definition.isSuspended()) {
+
+        Integer currentState = process.getProcessState();
+        if (currentState == null || currentState != FlowState.active.getValue()) {
             throw new BusinessException(400, "流程定义已处于挂起状态");
         }
-        repositoryService.suspendProcessDefinitionById(processDefinitionId, true, null);
-        log.info("流程定义已挂起：id={}, name={}", processDefinitionId, definition.getName());
+
+        // 通过 Mapper 更新流程状态
+        FlwProcess updateProcess = new FlwProcess();
+        updateProcess.setId(id);
+        updateProcess.setProcessState(FlowState.inactive.getValue());
+        processMapper.updateById(updateProcess);
+
+        log.info("流程定义已挂起：id={}, name={}", id, process.getProcessName());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void activateDefinition(String processDefinitionId) {
-        ProcessDefinition definition = repositoryService.getProcessDefinition(processDefinitionId);
-        if (definition == null) {
+        Long id = parseProcessId(processDefinitionId);
+
+        FlwProcess process = processService.getProcessById(id);
+        if (process == null) {
             throw new BusinessException(404, "流程定义不存在");
         }
-        if (!definition.isSuspended()) {
+
+        Integer currentState = process.getProcessState();
+        if (currentState != null && currentState == FlowState.active.getValue()) {
             throw new BusinessException(400, "流程定义已处于激活状态");
         }
-        repositoryService.activateProcessDefinitionById(processDefinitionId, true, null);
-        log.info("流程定义已激活：id={}, name={}", processDefinitionId, definition.getName());
+
+        // 通过 Mapper 更新流程状态
+        FlwProcess updateProcess = new FlwProcess();
+        updateProcess.setId(id);
+        updateProcess.setProcessState(FlowState.active.getValue());
+        processMapper.updateById(updateProcess);
+
+        log.info("流程定义已激活：id={}, name={}", id, process.getProcessName());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDeployment(String deploymentId) {
-        // 检查部署是否存在
-        long count = repositoryService.createDeploymentQuery()
-                .deploymentId(deploymentId)
-                .count();
-        if (count == 0) {
-            throw new BusinessException(404, "部署不存在");
-        }
+        // FlowLong 的 deploymentId 实际上是 processId
+        Long processId = parseProcessId(deploymentId);
 
-        // 级联删除部署（包括流程实例）
-        repositoryService.deleteDeployment(deploymentId, true);
-
-        // 删除扩展信息
-        LambdaQueryWrapper<WfProcessDeployExt> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(WfProcessDeployExt::getDeploymentId, deploymentId);
-        wfProcessDeployExtMapper.delete(wrapper);
-
-        log.info("流程部署已删除：deploymentId={}", deploymentId);
-    }
-
-    @Override
-    public String getBpmnXml(String processDefinitionId) {
-        ProcessDefinition definition = repositoryService.getProcessDefinition(processDefinitionId);
-        if (definition == null) {
+        // 检查流程是否存在
+        FlwProcess process = processService.getProcessById(processId);
+        if (process == null) {
             throw new BusinessException(404, "流程定义不存在");
         }
 
-        // 优先从扩展表获取
-        WfProcessDeployExt ext = getDeployExtByDeploymentId(definition.getDeploymentId());
-        if (ext != null && StrUtil.isNotBlank(ext.getBpmnXml())) {
-            return ext.getBpmnXml();
+        // 检查是否有运行中的流程实例
+        LambdaQueryWrapper<com.aizuda.bpm.engine.entity.FlwInstance> instanceWrapper = new LambdaQueryWrapper<>();
+        instanceWrapper.eq(com.aizuda.bpm.engine.entity.FlwInstance::getProcessId, processId);
+        long instanceCount = instanceMapper.selectCount(instanceWrapper);
+        if (instanceCount > 0) {
+            throw new BusinessException(400, "存在运行中的流程实例，无法删除流程定义");
         }
 
-        // 从部署资源获取
-        List<String> resourceNames = repositoryService.getDeploymentResourceNames(definition.getDeploymentId());
-        String bpmnResourceName = resourceNames.stream()
-                .filter(name -> name.endsWith(".bpmn20.xml") || name.endsWith(".bpmn"))
-                .findFirst()
-                .orElse(null);
+        // 删除流程定义
+        processMapper.deleteById(processId);
 
-        if (bpmnResourceName == null) {
-            throw new BusinessException(404, "BPMN XML资源不存在");
+        // 删除扩展信息
+        LambdaQueryWrapper<WfProcessExt> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(WfProcessExt::getProcessId, processId);
+        processExtMapper.delete(wrapper);
+
+        log.info("流程定义已删除：processId={}", processId);
+    }
+
+    @Override
+    public String getModelJson(String processDefinitionId) {
+        Long id = parseProcessId(processDefinitionId);
+
+        FlwProcess process = processService.getProcessById(id);
+        if (process == null) {
+            throw new BusinessException(404, "流程定义不存在");
         }
 
-        try (InputStream inputStream = repositoryService.getResourceAsStream(
-                definition.getDeploymentId(), bpmnResourceName)) {
-            return new String(inputStream.readAllBytes());
-        } catch (Exception e) {
-            log.error("获取BPMN XML失败：processDefinitionId={}", processDefinitionId, e);
-            throw new BusinessException(500, "获取BPMN XML失败");
+        // 优先从扩展表获取模型 JSON
+        WfProcessExt ext = getProcessExtByProcessId(id);
+        if (ext != null && StrUtil.isNotBlank(ext.getModelJson())) {
+            return ext.getModelJson();
         }
+
+        // 返回 FlowLong 存储的模型内容
+        if (StrUtil.isNotBlank(process.getModelContent())) {
+            return process.getModelContent();
+        }
+
+        throw new BusinessException(404, "流程定义内容不存在");
     }
 
     @Override
     public InputStream getDiagram(String processDefinitionId) {
-        ProcessDefinition definition = repositoryService.getProcessDefinition(processDefinitionId);
-        if (definition == null) {
+        Long id = parseProcessId(processDefinitionId);
+
+        FlwProcess process = processService.getProcessById(id);
+        if (process == null) {
             throw new BusinessException(404, "流程定义不存在");
         }
 
-        BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
-        if (bpmnModel == null || bpmnModel.getProcesses().isEmpty()) {
+        // 优先使用扩展表中的 modelJson
+        WfProcessExt ext = getProcessExtByProcessId(id);
+        String modelContent = null;
+        if (ext != null && StrUtil.isNotBlank(ext.getModelJson())) {
+            modelContent = ext.getModelJson();
+        } else if (StrUtil.isNotBlank(process.getModelContent())) {
+            modelContent = process.getModelContent();
+        }
+
+        if (modelContent == null) {
             throw new BusinessException(404, "流程模型不存在");
         }
 
-        // 使用 DefaultProcessDiagramGenerator 生成流程图
-        ProcessDiagramGenerator diagramGenerator = new DefaultProcessDiagramGenerator();
-        return diagramGenerator.generateDiagram(
-                bpmnModel,
-                "png",
-                Collections.emptyList(),
-                Collections.emptyList(),
-                "宋体",
-                "宋体",
-                "宋体",
-                null,
-                1.0,
-                true
-        );
+        // 使用 FlowLong 流程图生成器生成 SVG
+        return diagramGenerator.generateDiagram(modelContent, Collections.emptySet());
     }
 
-    /**
-     * 批量获取部署扩展信息映射
-     */
-    private Map<String, WfProcessDeployExt> getDeployExtMap(List<String> deploymentIds) {
-        if (deploymentIds.isEmpty()) {
+    @Override
+    public List<UserTaskNodeResponse> getStartUserSelectTasks(String processDefinitionId) {
+        Long id = parseProcessId(processDefinitionId);
+
+        FlwProcess process = processService.getProcessById(id);
+        if (process == null || StrUtil.isBlank(process.getModelContent())) {
+            return Collections.emptyList();
+        }
+
+        // 解析 FlowLong JSON 流程模型，获取用户任务节点
+        // TODO: 实现 FlowLong 流程模型解析，提取候选人策略信息
+
+        return Collections.emptyList();
+    }
+
+    // ========== 私有方法 ==========
+
+    private Long parseProcessId(String processDefinitionId) {
+        try {
+            return Long.parseLong(processDefinitionId);
+        } catch (NumberFormatException e) {
+            throw new BusinessException(400, "流程定义ID格式错误");
+        }
+    }
+
+    private FlowCreator createFlowCreator(Long userId) {
+        return new FlowCreator(String.valueOf(userId), identityService.getUserName(userId));
+    }
+
+    private WfProcessExt getProcessExtByProcessId(Long processId) {
+        LambdaQueryWrapper<WfProcessExt> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(WfProcessExt::getProcessId, processId);
+        return processExtMapper.selectOne(wrapper);
+    }
+
+    private Map<Long, WfProcessExt> getProcessExtMap(Set<Long> processIds) {
+        if (processIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        LambdaQueryWrapper<WfProcessDeployExt> wrapper = new LambdaQueryWrapper<>();
-        wrapper.in(WfProcessDeployExt::getDeploymentId, deploymentIds);
-        List<WfProcessDeployExt> extList = wfProcessDeployExtMapper.selectList(wrapper);
+        LambdaQueryWrapper<WfProcessExt> wrapper = new LambdaQueryWrapper<>();
+        wrapper.in(WfProcessExt::getProcessId, processIds);
+        List<WfProcessExt> extList = processExtMapper.selectList(wrapper);
         return extList.stream()
-                .collect(Collectors.toMap(WfProcessDeployExt::getDeploymentId, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(WfProcessExt::getProcessId, ext -> ext, (a, b) -> a));
     }
 
-    /**
-     * 根据部署ID获取扩展信息
-     */
-    private WfProcessDeployExt getDeployExtByDeploymentId(String deploymentId) {
-        LambdaQueryWrapper<WfProcessDeployExt> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(WfProcessDeployExt::getDeploymentId, deploymentId);
-        return wfProcessDeployExtMapper.selectOne(wrapper);
-    }
-
-    /**
-     * 获取分类名称映射
-     */
     private Map<Long, String> getCategoryNameMap(List<Long> categoryIds) {
         if (categoryIds.isEmpty()) {
             return Collections.emptyMap();
@@ -357,7 +357,7 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
         LambdaQueryWrapper<WfCategory> wrapper = new LambdaQueryWrapper<>();
         wrapper.in(WfCategory::getId, categoryIds)
                 .select(WfCategory::getId, WfCategory::getCategoryName);
-        List<WfCategory> categories = wfCategoryMapper.selectList(wrapper);
+        List<WfCategory> categories = categoryMapper.selectList(wrapper);
         return categories.stream()
                 .collect(Collectors.toMap(WfCategory::getId, WfCategory::getCategoryName, (a, b) -> a));
     }
@@ -365,25 +365,30 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
     /**
      * 转换为响应对象
      */
-    private ProcessDefinitionResponse convertToResponse(ProcessDefinition definition,
-                                                        WfProcessDeployExt ext,
-                                                        Map<Long, String> categoryNameMap) {
+    private ProcessDefinitionResponse convertToResponse(FlwProcess process,
+                                                         WfProcessExt ext,
+                                                         Map<Long, String> categoryNameMap) {
         ProcessDefinitionResponse response = new ProcessDefinitionResponse();
-        response.setId(definition.getId());
-        response.setKey(definition.getKey());
-        response.setName(definition.getName());
-        response.setVersion(definition.getVersion());
-        response.setDeploymentId(definition.getDeploymentId());
-        response.setSuspensionState(definition.isSuspended() ? 2 : 1);
-        response.setResourceName(definition.getResourceName());
-        response.setDiagramResourceName(definition.getDiagramResourceName());
+        response.setId(String.valueOf(process.getId()));
+        response.setKey(process.getProcessKey());
+        response.setName(process.getProcessName());
+        response.setVersion(process.getProcessVersion() != null ? process.getProcessVersion() : 1);
+
+        // FlowLong 的流程状态
+        Integer processState = process.getProcessState();
+        if (processState != null) {
+            // FlowState.active = 1 (可用), FlowState.inactive = 0 (不可用)
+            response.setSuspensionState(processState == FlowState.active.getValue() ? 1 : 2);
+        } else {
+            response.setSuspensionState(1); // 默认可用
+        }
 
         // 从扩展表获取额外信息
         if (ext != null) {
             response.setCategoryId(ext.getCategoryId());
             response.setDescription(ext.getDescription());
             response.setDeployUserName(ext.getCreateByName());
-            response.setBpmnXml(ext.getBpmnXml());
+            response.setModelJson(ext.getModelJson());
             response.setFormType(ext.getFormType());
             response.setFormId(ext.getFormId());
             response.setAutoCopyStrategy(ext.getAutoCopyStrategy());
@@ -398,36 +403,5 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
         }
 
         return response;
-    }
-
-    @Override
-    public List<UserTaskNodeResponse> getStartUserSelectTasks(String processDefinitionId) {
-        BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
-        if (bpmnModel == null || bpmnModel.getProcesses().isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<UserTaskNodeResponse> result = new ArrayList<>();
-        for (org.flowable.bpmn.model.Process process : bpmnModel.getProcesses()) {
-            for (UserTask userTask : process.findFlowElementsOfType(UserTask.class)) {
-                String strategyStr = userTask.getAttributeValue(
-                        "http://flowable.org/bpmn", "candidateStrategy");
-                if (strategyStr != null) {
-                    try {
-                        int strategy = Integer.parseInt(strategyStr);
-                        // 34=审批人自选, 35=发起人自选
-                        if (strategy == CandidateStrategyEnum.APPROVE_USER_SELECT.getCode()
-                                || strategy == CandidateStrategyEnum.START_USER_SELECT.getCode()) {
-                            UserTaskNodeResponse node = new UserTaskNodeResponse();
-                            node.setTaskDefKey(userTask.getId());
-                            node.setTaskName(userTask.getName());
-                            node.setCandidateStrategy(strategy);
-                            result.add(node);
-                        }
-                    } catch (NumberFormatException ignored) {}
-                }
-            }
-        }
-        return result;
     }
 }
