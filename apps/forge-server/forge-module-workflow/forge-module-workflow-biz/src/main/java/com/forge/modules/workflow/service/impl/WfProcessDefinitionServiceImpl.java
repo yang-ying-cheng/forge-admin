@@ -24,6 +24,7 @@ import com.forge.modules.workflow.dto.definition.ProcessDeployRequest;
 import com.forge.modules.workflow.dto.definition.UserTaskNodeResponse;
 import com.forge.modules.workflow.entity.WfCategory;
 import com.forge.modules.workflow.entity.WfProcessExt;
+import com.forge.modules.workflow.framework.candidate.CandidateStrategyEnum;
 import com.forge.modules.workflow.framework.diagram.FlowLongDiagramGenerator;
 import com.forge.modules.workflow.identity.FlowLongIdentityService;
 import com.forge.modules.workflow.mapper.WfCategoryMapper;
@@ -362,7 +363,9 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
             UserTaskNodeResponse response = new UserTaskNodeResponse();
             response.setTaskDefKey(nodeKey);
             response.setTaskName(nodeName);
-            response.setCandidateStrategy(setType);
+            // 将 setType 转换为候选人策略
+            CandidateStrategyEnum strategy = CandidateStrategyEnum.fromSetType(setType);
+            response.setCandidateStrategy(strategy != null ? strategy.getCode() : null);
             result.add(response);
         }
 

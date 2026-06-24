@@ -143,39 +143,9 @@ public class ForgeTaskActorProvider extends GeneralTaskActorProvider {
         Integer setType = nodeModel.getSetType();
         log.debug("节点 {}, setType={}", nodeModel.getNodeName(), setType);
 
-        // 根据 setType 推算候选人策略
-        // 注意：前端设计器 setType=2 对应"部门负责人"，映射到 START_USER_DEPT_LEADER
-        if (setType != null) {
-            if (NodeSetType.specifyMembers.eq(setType)) {
-                return CandidateStrategyEnum.USER.getCode(); // 指定成员 -> USER
-            }
-            if (NodeSetType.supervisor.eq(setType)) {
-                return CandidateStrategyEnum.START_USER_DEPT_LEADER.getCode(); // 部门负责人 -> START_USER_DEPT_LEADER
-            }
-            if (NodeSetType.role.eq(setType)) {
-                return CandidateStrategyEnum.ROLE.getCode(); // 角色 -> ROLE
-            }
-            if (NodeSetType.initiatorSelected.eq(setType)) {
-                return CandidateStrategyEnum.START_USER_SELECT.getCode(); // 发起人自选 -> START_USER_SELECT
-            }
-            if (NodeSetType.initiatorThemselves.eq(setType)) {
-                return CandidateStrategyEnum.START_USER.getCode(); // 发起人自己 -> START_USER
-            }
-            // 前端设计器 setType=6 对应"审批人自选"
-            if (setType == 6) {
-                return CandidateStrategyEnum.APPROVE_USER_SELECT.getCode(); // 审批人自选 -> APPROVE_USER_SELECT
-            }
-            // 前端设计器 setType=7 对应"连续多级部门负责人"
-            if (setType == 7) {
-                return CandidateStrategyEnum.DEPT_LEADER_MULTI.getCode(); // 连续多级部门负责人 -> DEPT_LEADER_MULTI
-            }
-            // 前端设计器 setType=8 对应"表达式"
-            if (setType == 8) {
-                return CandidateStrategyEnum.EXPRESSION.getCode(); // 表达式 -> EXPRESSION
-            }
-        }
-
-        return null;
+        // 使用统一转换方法
+        CandidateStrategyEnum strategy = CandidateStrategyEnum.fromSetType(setType);
+        return strategy != null ? strategy.getCode() : null;
     }
 
     /**
