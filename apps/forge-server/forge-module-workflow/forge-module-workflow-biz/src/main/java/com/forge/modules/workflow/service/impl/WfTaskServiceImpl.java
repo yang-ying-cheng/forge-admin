@@ -332,8 +332,73 @@ public class WfTaskServiceImpl implements WfTaskService {
 
     @Override
     public List<Map<String, String>> getReturnNodes(String taskId) {
-        // TODO: 实现获取可退回节点列表
-        return Collections.emptyList();
+        Long id = parseTaskId(taskId);
+        FlwTask task = validateTask(id);
+
+        // 获取流程实例的所有历史任务
+        Optional<List<FlwHisTask>> hisTasksOpt = queryService.getHisTasksByInstanceId(task.getInstanceId());
+        if (hisTasksOpt.isEmpty() || hisTasksOpt.get().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<FlwHisTask> hisTasks = hisTasksOpt.get();
+
+        // 筛选可退回的节点
+        // 1. 已完成的任务（taskState > 0）
+        // 2. 排除抄送、触发器、定时器等特殊任务类型
+        // 3. 排除当前任务节点
+        // 4. 只保留审批节点和发起人节点
+        List<Map<String, String>> returnNodes = new ArrayList<>();
+        Set<String> addedNodeKeys = new HashSet<>(); // 避免重复节点
+
+        for (FlwHisTask hisTask : hisTasks) {
+            // 排除未完成的任务
+            if (hisTask.getTaskState() == null || hisTask.getTaskState() <= 0) {
+                continue;
+            }
+
+            // 排除特殊任务类型：抄送、触发器、定时器
+            Integer taskType = hisTask.getTaskType();
+            if (TaskType.cc.eq(taskType) || TaskType.trigger.eq(taskType) || TaskType.timer.eq(taskType)) {
+                continue;
+            }
+
+            // 排除当前任务节点
+            if (Objects.equals(hisTask.getTaskKey(), task.getTaskKey())) {
+                continue;
+            }
+
+            // 只保留审批节点和发起人节点
+            // TaskType.major = 0 (发起人), TaskType.approval = 1 (审批人)
+            if (!TaskType.major.eq(taskType) && !TaskType.approval.eq(taskType)) {
+                continue;
+            }
+
+            // 避免重复添加同一节点
+            if (addedNodeKeys.contains(hisTask.getTaskKey())) {
+                continue;
+            }
+            addedNodeKeys.add(hisTask.getTaskKey());
+
+            Map<String, String> node = new HashMap<>();
+            node.put("taskDefKey", hisTask.getTaskKey());
+            node.put("taskName", hisTask.getTaskName());
+            returnNodes.add(node);
+        }
+
+        // 按完成时间倒序排列（最近的节点在前）
+        returnNodes.sort((a, b) -> {
+            // 发起人节点始终放在最后
+            if ("major".equals(a.get("taskDefKey")) || a.get("taskDefKey").startsWith("start")) {
+                return 1;
+            }
+            if ("major".equals(b.get("taskDefKey")) || b.get("taskDefKey").startsWith("start")) {
+                return -1;
+            }
+            return 0;
+        });
+
+        return returnNodes;
     }
 
     @Override
