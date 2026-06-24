@@ -58,8 +58,6 @@ public class WfModelServiceImpl implements WfModelService {
     public Page<ModelResponse> pageModel(ModelQueryRequest request) {
         // 查询 wf_process_ext 表，筛选 process_id = null 的草稿模型
         LambdaQueryWrapper<WfProcessExt> wrapper = new LambdaQueryWrapper<>();
-        wrapper.isNull(WfProcessExt::getProcessId)  // 草稿状态：未关联流程定义
-                .eq(WfProcessExt::getDeleted, 0);
 
         if (StrUtil.isNotBlank(request.getName())) {
             wrapper.like(WfProcessExt::getProcessName, request.getName());
@@ -181,14 +179,22 @@ public class WfModelServiceImpl implements WfModelService {
             throw new BusinessException(404, "模型不存在");
         }
 
-        // 已部署的模型不允许修改基本信息
-        if (ext.getProcessId() != null) {
-            throw new BusinessException(400, "已部署的模型不允许修改基本信息");
-        }
-
         Long currentUserId = SecurityUtils.getCurrentUserId();
         String userName = identityService.getUserName(currentUserId);
 
+        // 已部署的模型：只允许更新 modelJson（设计内容），不允许修改基本信息
+        if (ext.getProcessId() != null) {
+            if (StrUtil.isNotBlank(request.getModelJson())) {
+                ext.setModelJson(request.getModelJson());
+                ext.setUpdateTime(LocalDateTime.now());
+                processExtMapper.updateById(ext);
+                log.info("更新已部署模型设计内容：id={}, name={}", ext.getId(), ext.getProcessName());
+                return;
+            }
+            throw new BusinessException(400, "已部署的模型只允许更新设计内容（modelJson）");
+        }
+
+        // 未部署的模型：允许修改所有信息
         ext.setProcessName(request.getName());
         ext.setProcessKey(request.getKey());
         ext.setCategoryId(request.getCategoryId());
@@ -238,11 +244,6 @@ public class WfModelServiceImpl implements WfModelService {
             throw new BusinessException(404, "模型不存在");
         }
 
-        // 已部署的模型不允许重复部署
-        if (ext.getProcessId() != null) {
-            throw new BusinessException(400, "模型已部署，请创建新版本");
-        }
-
         // 获取流程模型内容
         String modelContent = ext.getModelJson();
         if (StrUtil.isBlank(modelContent)) {
@@ -258,8 +259,9 @@ public class WfModelServiceImpl implements WfModelService {
         FlowCreator flowCreator = createFlowCreator(currentUserId);
 
         // 部署流程（使用 FlowLong JSON 格式）
+        // repeat=true：每次部署都会创建新版本（版本号自动递增）
         InputStream inputStream = new ByteArrayInputStream(modelContent.getBytes(StandardCharsets.UTF_8));
-        Long processId = processService.deploy(inputStream, flowCreator, false, process -> {
+        Long processId = processService.deploy(inputStream, flowCreator, true, process -> {
             process.setProcessName(ext.getProcessName());
             process.setProcessType(ext.getFormType() != null ? String.valueOf(ext.getFormType()) : null);
             process.setRemark(ext.getDescription());
@@ -271,13 +273,13 @@ public class WfModelServiceImpl implements WfModelService {
             throw new BusinessException(400, "流程部署失败");
         }
 
-        // 更新扩展表，关联流程定义
+        // 更新扩展表，关联最新的流程定义ID
         ext.setProcessId(processId);
         ext.setUpdateTime(LocalDateTime.now());
         processExtMapper.updateById(ext);
 
-        log.info("模型部署成功：modelId={}, name={}, processId={}, deployBy={}",
-                extId, ext.getProcessName(), processId, userName);
+        log.info("模型部署成功：modelId={}, name={}, processId={}, version={}, deployBy={}",
+                extId, ext.getProcessName(), processId, process.getProcessVersion(), userName);
     }
 
     @Override
@@ -339,6 +341,16 @@ public class WfModelServiceImpl implements WfModelService {
         response.setAutoCopyParam(ext.getAutoCopyParam());
         response.setCreateTime(ext.getCreateTime());
         response.setLastUpdateTime(ext.getUpdateTime());
+
+        // 设置版本：已部署从 FlwProcess 获取，未部署默认为 "1"
+        if (ext.getProcessId() != null) {
+            FlwProcess process = processService.getProcessById(ext.getProcessId());
+            if (process != null) {
+                response.setVersion(String.valueOf(process.getProcessVersion()));
+            }
+        } else {
+            response.setVersion("1"); // 草稿默认版本为 1
+        }
 
         // 解析 metaInfo
         if (StrUtil.isNotBlank(ext.getMetaInfo())) {

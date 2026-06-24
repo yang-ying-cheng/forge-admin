@@ -108,8 +108,9 @@ public class WfProcessDefinitionController {
     public ResponseEntity<byte[]> getDiagram(@PathVariable String id) {
         try (var inputStream = wfProcessDefinitionService.getDiagram(id)) {
             byte[] diagramBytes = inputStream.readAllBytes();
+            // FlowLongDiagramGenerator 生成 SVG 格式
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_TYPE, MediaType.IMAGE_PNG_VALUE)
+                    .header(HttpHeaders.CONTENT_TYPE, "image/svg+xml")
                     .body(diagramBytes);
         } catch (IOException e) {
             return ResponseEntity.internalServerError().build();

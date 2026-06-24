@@ -45,6 +45,31 @@ public class TaskResponse {
     private String processDefinitionName;
 
     /**
+     * 流程定义ID
+     */
+    private String processDefinitionId;
+
+    /**
+     * 流程定义Key
+     */
+    private String processDefinitionKey;
+
+    /**
+     * 发起人ID
+     */
+    private String startUserId;
+
+    /**
+     * 发起人名称
+     */
+    private String startUserName;
+
+    /**
+     * 流程发起时间
+     */
+    private Date startTime;
+
+    /**
      * 处理人ID
      */
     private String assignee;

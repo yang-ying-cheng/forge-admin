@@ -85,4 +85,23 @@ public class FlowLongIdentityService {
         }
         return roleIds;
     }
+
+    /**
+     * 根据用户ID获取其角色ID集合（Long类型）
+     */
+    public Set<Long> getUserRoleIds(Long userId) {
+        List<SysRole> roles = sysRoleMapper.selectRolesByUserId(userId);
+        return roles.stream()
+                .map(SysRole::getId)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * 根据用户ID获取其部门ID
+     */
+    public Long getUserDeptId(Long userId) {
+        if (userId == null) return null;
+        SysUser user = sysUserMapper.selectById(userId);
+        return user != null ? user.getDeptId() : null;
+    }
 }

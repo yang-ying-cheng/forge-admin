@@ -170,12 +170,12 @@
           <el-input v-model="formData.key" placeholder="请输入模型标识（英文）" :disabled="isEditDialog" />
         </el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="formData.category" placeholder="请选择分类" clearable style="width: 100%">
+          <el-select v-model="formData.categoryId" placeholder="请选择分类" clearable style="width: 100%">
             <el-option
               v-for="item in categoryList"
-              :key="item.categoryCode"
+              :key="item.id"
               :label="item.categoryName"
-              :value="item.categoryCode"
+              :value="item.id"
             />
           </el-select>
         </el-form-item>
@@ -332,7 +332,7 @@ const formData = reactive({
   id: undefined as string | undefined,
   name: '',
   key: '',
-  category: undefined as string | undefined,
+  categoryId: undefined as number | undefined,
   description: '',
   formType: undefined as number | undefined,
   formId: undefined as number | undefined,
@@ -412,7 +412,7 @@ const handleAdd = () => {
   formData.id = undefined
   formData.name = ''
   formData.key = ''
-  formData.category = undefined
+  formData.categoryId = undefined
   formData.description = ''
   formData.formType = undefined
   formData.formId = undefined
@@ -428,7 +428,7 @@ const handleEdit = (row: WfModel) => {
   formData.id = row.id
   formData.name = row.name
   formData.key = row.key
-  formData.category = row.category || undefined
+  formData.categoryId = row.categoryId || undefined
   formData.description = row.description || ''
   formData.formType = row.formType || undefined
   formData.formId = row.formId || undefined
@@ -464,7 +464,7 @@ const handleSubmit = async () => {
         id: formData.id,
         name: formData.name,
         key: formData.key,
-        category: formData.category,
+        categoryId: formData.categoryId,
         description: formData.description,
         metaInfo: Object.keys(metaInfo).length > 0 ? JSON.stringify(metaInfo) : undefined,
       })
@@ -473,7 +473,7 @@ const handleSubmit = async () => {
       await modelApi.add({
         name: formData.name,
         key: formData.key,
-        category: formData.category,
+        categoryId: formData.categoryId,
         description: formData.description,
         metaInfo: Object.keys(metaInfo).length > 0 ? JSON.stringify(metaInfo) : undefined,
       })

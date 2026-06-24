@@ -94,8 +94,7 @@
     <!-- 流程图弹窗 -->
     <FlowDiagramDialog
       v-model="diagramDialogVisible"
-      :bpmn-xml="bpmnXml"
-      :active-activity-ids="activeActivityIds"
+      :process-definition-id="instance?.processDefinitionId"
     />
   </div>
 </template>
@@ -122,18 +121,9 @@ const loading = ref(false)
 const instance = ref<ProcessInstance | null>(null)
 const approvalNodes = ref<ApprovalNode[]>([])
 const comments = ref<ApprovalComment[]>([])
-const bpmnXml = ref('')
 const diagramDialogVisible = ref(false)
 
 const instanceId = route.query.id as string
-
-// 审批动作标签映射
-// 当前活跃节点ID列表（用于流程图高亮）
-const activeActivityIds = computed(() => {
-  return approvalNodes.value
-    .filter(n => n.status === 1)
-    .map(n => n.activityId)
-})
 
 // 表单相关
 const formCreateRef = ref<any>(null)
@@ -155,11 +145,10 @@ const getInstanceDetail = async () => {
 
     if (instanceData.status === 'fulfilled') {
       instance.value = instanceData.value
-      // 通过流程定义ID获取 BPMN XML 和表单
+      // 通过流程定义ID获取表单
       if (instanceData.value?.processDefinitionId) {
         const processDefId = instanceData.value.processDefinitionId
         try {
-          bpmnXml.value = await processDefinitionApi.getXml(processDefId) || ''
           const processDef = await processDefinitionApi.getById(processDefId)
           if (processDef.formId) {
             const formDefData = await formApi.getById(processDef.formId)
@@ -201,9 +190,6 @@ const getInstanceDetail = async () => {
 
     if (detailData.status === 'fulfilled' && detailData.value) {
       approvalNodes.value = detailData.value.nodes || []
-      if (detailData.value.bpmnXml && !bpmnXml.value) {
-        bpmnXml.value = detailData.value.bpmnXml
-      }
     }
 
     if (commentsData.status === 'fulfilled') {

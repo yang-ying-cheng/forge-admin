@@ -5,7 +5,9 @@ export interface WfModel {
   id: string
   name: string
   key: string
+  categoryId: number | null
   category: string
+  categoryName: string | null
   description: string
   version: string
   metaInfo: string

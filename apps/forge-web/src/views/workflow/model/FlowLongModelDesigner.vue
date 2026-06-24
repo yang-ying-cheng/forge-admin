@@ -68,7 +68,7 @@ const route = useRoute()
 const workflowRef = ref<InstanceType<typeof ScWorkflow> | null>(null)
 
 // 数据转换 Hook
-const { createInitialModel, transformBackendToDesigner } = useFlowLongDataTransform()
+const { createInitialModel } = useFlowLongDataTransform()
 
 // 流程模型数据（flowlong-designer 格式）
 const processModel = ref<FlowlongProcessModel | null>(null)
@@ -138,28 +138,13 @@ const loadModelData = async (id: string) => {
         // 获取节点配置（可能是整个模型对象，也可能是单独的节点配置）
         const nodeConfig = savedModel.nodeConfig || savedModel
 
-        // 判断数据格式：designer 格式 type=0(发起人)/1(审批人)，backend 格式 type=1(开始)/2(审批)
-        // designer 格式的审批节点 type=1，且有 setType/nodeAssigneeList 字段
-        // backend 格式有 nodeCandidate/extendConfig 字段
-        const isBackendFormat = nodeConfig.type >= 1 &&
-          (nodeConfig.nodeCandidate !== undefined || nodeConfig.extendConfig !== undefined) &&
-          nodeConfig.setType === undefined
-
-        if (isBackendFormat) {
-          // 纯后端格式，需要转换
-          processModel.value = transformBackendToDesigner(nodeConfig)
-        } else {
-          // designer 格式（可能包含旧数据污染），直接使用并修复
-          const fixedNodeConfig = fixNodeTypes(nodeConfig)
-          processModel.value = {
-            name: data.name,
-            key: data.key,
-            nodeConfig: fixedNodeConfig
-          }
+        // 修复旧数据中可能被污染的节点类型
+        const fixedNodeConfig = fixNodeTypes(nodeConfig)
+        processModel.value = {
+          name: data.name,
+          key: data.key,
+          nodeConfig: fixedNodeConfig
         }
-        // 设置流程名称和 key（确保数据完整）
-        processModel.value.name = data.name
-        processModel.value.key = data.key
       } catch (e) {
         // JSON 解析失败，创建初始模型
         processModel.value = createInitialModel(data.key, data.name)
@@ -227,7 +212,13 @@ const handleSave = async () => {
   try {
     await ElMessageBox.confirm('确定保存模型？', '保存确认', { type: 'info' })
 
-    // 直接保存 designer 格式的模型 JSON（设计器组件直接使用此格式）
+    // FlowLong 期望的格式: { name, key, nodeConfig: {...} }
+    // 设计器格式与 FlowLong 格式一致，直接保存
+    const processModelJson = {
+      name: modelData.value?.name || processModel.value.name,
+      key: modelData.value?.key || processModel.value.key,
+      nodeConfig: processModel.value.nodeConfig
+    }
     await modelApi.update({
       id,
       name: modelData.value?.name || '',
@@ -239,7 +230,7 @@ const handleSave = async () => {
       autoCopyStrategy: modelData.value?.autoCopyStrategy,
       autoCopyParam: modelData.value?.autoCopyParam,
       metaInfo: modelData.value?.metaInfo,
-      modelJson: JSON.stringify(processModel.value)
+      modelJson: JSON.stringify(processModelJson)
     })
     ElMessage.success('保存成功')
   } catch (e) {

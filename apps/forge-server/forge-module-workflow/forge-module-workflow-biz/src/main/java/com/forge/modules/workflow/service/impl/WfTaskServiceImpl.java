@@ -3,10 +3,17 @@ package com.forge.modules.workflow.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.aizuda.bpm.engine.*;
 import com.aizuda.bpm.engine.core.FlowCreator;
+import com.aizuda.bpm.engine.core.FlowLongEngineImpl;
 import com.aizuda.bpm.engine.core.enums.PerformType;
 import com.aizuda.bpm.engine.core.enums.TaskState;
 import com.aizuda.bpm.engine.core.enums.TaskType;
 import com.aizuda.bpm.engine.entity.*;
+import com.aizuda.bpm.mybatisplus.mapper.FlwInstanceMapper;
+import com.aizuda.bpm.mybatisplus.mapper.FlwHisInstanceMapper;
+import com.aizuda.bpm.mybatisplus.mapper.FlwHisTaskActorMapper;
+import com.aizuda.bpm.mybatisplus.mapper.FlwHisTaskMapper;
+import com.aizuda.bpm.mybatisplus.mapper.FlwTaskActorMapper;
+import com.aizuda.bpm.mybatisplus.mapper.FlwTaskMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.forge.common.exception.BusinessException;
@@ -17,6 +24,7 @@ import com.forge.modules.workflow.framework.ApprovalActionTypeEnum;
 import com.forge.modules.workflow.identity.FlowLongIdentityService;
 import com.forge.modules.workflow.mapper.WfApprovalCommentMapper;
 import com.forge.modules.workflow.service.WfTaskService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,6 +50,13 @@ public class WfTaskServiceImpl implements WfTaskService {
     private final QueryService queryService;
     private final FlowLongIdentityService identityService;
     private final WfApprovalCommentMapper approvalCommentMapper;
+    private final FlwTaskMapper taskMapper;
+    private final FlwHisTaskMapper hisTaskMapper;
+    private final FlwTaskActorMapper taskActorMapper;
+    private final FlwHisTaskActorMapper hisTaskActorMapper;
+    private final FlwInstanceMapper instanceMapper;
+    private final FlwHisInstanceMapper hisInstanceMapper;
+    private final FlowLongEngine flowLongEngine;
 
     @Override
     public Page<TaskResponse> getTodoTasks(TaskQueryRequest request) {
@@ -50,13 +65,52 @@ public class WfTaskServiceImpl implements WfTaskService {
             throw new BusinessException(401, "未获取到当前用户信息");
         }
 
-        // TODO: 使用 FlowLong QueryService 实现待办任务查询
-        // FlowLong 需要通过 MyBatis Plus 直接查询 flw_task 表
+        String userIdStr = String.valueOf(currentUserId);
+
+        // 查询当前用户作为参与者的待办任务
+        // 1. 先查询 flw_task_actor 表，找到当前用户参与的 taskId
+        LambdaQueryWrapper<FlwTaskActor> actorWrapper = new LambdaQueryWrapper<>();
+        actorWrapper.eq(FlwTaskActor::getActorId, userIdStr);
+        List<FlwTaskActor> taskActors = taskActorMapper.selectList(actorWrapper);
+
+        if (taskActors.isEmpty()) {
+            Page<TaskResponse> emptyPage = new Page<>();
+            emptyPage.setCurrent(request.getPageNum());
+            emptyPage.setSize(request.getPageSize());
+            emptyPage.setTotal(0);
+            emptyPage.setRecords(Collections.emptyList());
+            return emptyPage;
+        }
+
+        // 2. 获取所有 taskId
+        Set<Long> taskIds = taskActors.stream()
+                .map(FlwTaskActor::getTaskId)
+                .collect(Collectors.toSet());
+
+        // 3. 查询 flw_task 表，筛选活动任务
+        LambdaQueryWrapper<FlwTask> taskWrapper = new LambdaQueryWrapper<>();
+        taskWrapper.in(FlwTask::getId, taskIds);
+
+        // 任务名称筛选
+        if (StrUtil.isNotBlank(request.getName())) {
+            taskWrapper.like(FlwTask::getTaskName, request.getName());
+        }
+
+        taskWrapper.orderByDesc(FlwTask::getCreateTime);
+
+        Page<FlwTask> pageParam = new Page<>(request.getPageNum(), request.getPageSize());
+        Page<FlwTask> taskPage = taskMapper.selectPage(pageParam, taskWrapper);
+
+        // 4. 转换为响应对象，补充流程信息
+        List<TaskResponse> records = taskPage.getRecords().stream()
+                .map(task -> convertTaskToResponseWithProcess(task))
+                .collect(Collectors.toList());
+
         Page<TaskResponse> resultPage = new Page<>();
-        resultPage.setCurrent(request.getPageNum());
-        resultPage.setSize(request.getPageSize());
-        resultPage.setTotal(0);
-        resultPage.setRecords(Collections.emptyList());
+        resultPage.setCurrent(taskPage.getCurrent());
+        resultPage.setSize(taskPage.getSize());
+        resultPage.setTotal(taskPage.getTotal());
+        resultPage.setRecords(records);
         return resultPage;
     }
 
@@ -83,12 +137,54 @@ public class WfTaskServiceImpl implements WfTaskService {
             throw new BusinessException(401, "未获取到当前用户信息");
         }
 
-        // TODO: 实现已办任务查询
+        String userIdStr = String.valueOf(currentUserId);
+
+        // 查询当前用户作为参与者的历史任务
+        // 1. 先查询 flw_his_task_actor 表，找到当前用户参与的历史 taskId
+        LambdaQueryWrapper<FlwHisTaskActor> actorWrapper = new LambdaQueryWrapper<>();
+        actorWrapper.eq(FlwHisTaskActor::getActorId, userIdStr);
+        List<FlwHisTaskActor> hisTaskActors = hisTaskActorMapper.selectList(actorWrapper);
+
+        if (hisTaskActors.isEmpty()) {
+            Page<TaskResponse> emptyPage = new Page<>();
+            emptyPage.setCurrent(request.getPageNum());
+            emptyPage.setSize(request.getPageSize());
+            emptyPage.setTotal(0);
+            emptyPage.setRecords(Collections.emptyList());
+            return emptyPage;
+        }
+
+        // 2. 获取所有历史 taskId
+        Set<Long> hisTaskIds = hisTaskActors.stream()
+                .map(FlwHisTaskActor::getTaskId)
+                .collect(Collectors.toSet());
+
+        // 3. 查询 flw_his_task 表，筛选已完成的任务
+        LambdaQueryWrapper<FlwHisTask> taskWrapper = new LambdaQueryWrapper<>();
+        taskWrapper.in(FlwHisTask::getId, hisTaskIds);
+        // 只查询已完成的任务（task_state > 0 表示已完成）
+        taskWrapper.gt(FlwHisTask::getTaskState, 0);
+
+        // 任务名称筛选
+        if (StrUtil.isNotBlank(request.getName())) {
+            taskWrapper.like(FlwHisTask::getTaskName, request.getName());
+        }
+
+        taskWrapper.orderByDesc(FlwHisTask::getFinishTime);
+
+        Page<FlwHisTask> pageParam = new Page<>(request.getPageNum(), request.getPageSize());
+        Page<FlwHisTask> taskPage = hisTaskMapper.selectPage(pageParam, taskWrapper);
+
+        // 4. 转换为响应对象，补充流程信息
+        List<TaskResponse> records = taskPage.getRecords().stream()
+                .map(this::convertHisTaskToResponseWithProcess)
+                .collect(Collectors.toList());
+
         Page<TaskResponse> resultPage = new Page<>();
-        resultPage.setCurrent(request.getPageNum());
-        resultPage.setSize(request.getPageSize());
-        resultPage.setTotal(0);
-        resultPage.setRecords(Collections.emptyList());
+        resultPage.setCurrent(taskPage.getCurrent());
+        resultPage.setSize(taskPage.getSize());
+        resultPage.setTotal(taskPage.getTotal());
+        resultPage.setRecords(records);
         return resultPage;
     }
 
@@ -162,10 +258,10 @@ public class WfTaskServiceImpl implements WfTaskService {
         if (request.getVariables() != null) {
             variables.putAll(request.getVariables());
         }
-
         FlowCreator flowCreator = createFlowCreator(currentUserId);
-        taskService.complete(id, flowCreator, variables);
+//        taskService.complete(id, flowCreator, variables);
 
+        flowLongEngine.executeTask(id,flowCreator,variables);
         saveApprovalComment(task, currentUserId, userName, ApprovalActionTypeEnum.APPROVE.getCode(), request.getComment());
         log.info("任务审批通过：taskId={}, userId={}", taskId, currentUserId);
     }
@@ -393,6 +489,42 @@ public class WfTaskServiceImpl implements WfTaskService {
         return response;
     }
 
+    /**
+     * 转换任务响应（包含流程信息）
+     */
+    private TaskResponse convertTaskToResponseWithProcess(FlwTask task) {
+        TaskResponse response = convertTaskToResponse(task);
+
+        // 补充流程实例信息
+        FlwInstance instance = instanceMapper.selectById(task.getInstanceId());
+        if (instance != null) {
+            response.setProcessInstanceId(String.valueOf(instance.getId()));
+
+            // 补充流程定义信息
+            FlwProcess process = processService.getProcessById(instance.getProcessId());
+            if (process != null) {
+                response.setProcessDefinitionId(String.valueOf(process.getId()));
+                response.setProcessDefinitionName(process.getProcessName());
+                response.setProcessDefinitionKey(process.getProcessKey());
+            }
+
+            // 发起人信息
+            if (StrUtil.isNotBlank(instance.getCreateId())) {
+                response.setStartUserId(instance.getCreateId());
+                try {
+                    Long startUserId = Long.parseLong(instance.getCreateId());
+                    response.setStartUserName(identityService.getUserName(startUserId));
+                } catch (NumberFormatException e) {
+                    response.setStartUserName(instance.getCreateBy());
+                }
+            }
+
+            response.setStartTime(instance.getCreateTime());
+        }
+
+        return response;
+    }
+
     private TaskResponse convertHisTaskToResponse(FlwHisTask hisTask) {
         TaskResponse response = new TaskResponse();
         response.setId(String.valueOf(hisTask.getId()));
@@ -409,6 +541,53 @@ public class WfTaskServiceImpl implements WfTaskService {
 
         response.setCreateTime(hisTask.getCreateTime());
         response.setEndTime(hisTask.getFinishTime());
+        return response;
+    }
+
+    /**
+     * 转换历史任务响应（包含流程信息）
+     */
+    private TaskResponse convertHisTaskToResponseWithProcess(FlwHisTask hisTask) {
+        TaskResponse response = convertHisTaskToResponse(hisTask);
+
+        // 补充流程实例信息
+        FlwHisInstance hisInstance = hisInstanceMapper.selectById(hisTask.getInstanceId());
+        if (hisInstance != null) {
+            response.setProcessInstanceId(String.valueOf(hisInstance.getId()));
+
+            // 补充流程定义信息
+            FlwProcess process = processService.getProcessById(hisInstance.getProcessId());
+            if (process != null) {
+                response.setProcessDefinitionId(String.valueOf(process.getId()));
+                response.setProcessDefinitionName(process.getProcessName());
+                response.setProcessDefinitionKey(process.getProcessKey());
+            }
+
+            // 发起人信息
+            if (StrUtil.isNotBlank(hisInstance.getCreateId())) {
+                response.setStartUserId(hisInstance.getCreateId());
+                try {
+                    Long startUserId = Long.parseLong(hisInstance.getCreateId());
+                    response.setStartUserName(identityService.getUserName(startUserId));
+                } catch (NumberFormatException e) {
+                    response.setStartUserName(hisInstance.getCreateBy());
+                }
+            }
+
+            response.setStartTime(hisInstance.getCreateTime());
+
+            // 流程编号
+            String variableJson = hisInstance.getVariable();
+            if (StrUtil.isNotBlank(variableJson)) {
+                try {
+                    Map<String, Object> variables = new ObjectMapper().readValue(variableJson, Map.class);
+                    if (variables.get("processNo") != null) {
+                        response.setProcessNo(variables.get("processNo").toString());
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
         return response;
     }
 }

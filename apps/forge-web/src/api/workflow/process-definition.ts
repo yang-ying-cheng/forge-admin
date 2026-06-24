@@ -9,8 +9,10 @@ export const processDefinitionApi = {
     request.get<ProcessDefinition>(`/workflow/process-definition/${id}`).then(res => res.data),
   deploy: (data: ProcessDeployRequest) =>
     request.post('/workflow/process-definition/deploy', data),
+  getJson: (id: string) =>
+    request.get<string>(`/workflow/process-definition/${id}/json`).then(res => res.data),
   getXml: (id: string) =>
-    request.get<string>(`/workflow/process-definition/${id}/xml`).then(res => res.data),
+    request.get<string>(`/workflow/process-definition/${id}/json`).then(res => res.data), // FlowLong 使用 JSON 格式，别名保持兼容
   getDiagram: (id: string) =>
     request.get(`/workflow/process-definition/${id}/diagram`, { responseType: 'blob' }),
   getUserTaskNodes: (id: string) =>

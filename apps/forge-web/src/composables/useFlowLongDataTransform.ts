@@ -2,6 +2,23 @@ import type { FlowLongNodeModel } from './useFlowLongDesigner'
 
 /**
  * flowlong-designer 数据类型定义
+ *
+ * 注意：FlowLong 引擎的 TaskType 和 NodeSetType 值与前端设计器完全一致，不需要转换！
+ *
+ * FlowLong TaskType:
+ * - major(0) = 发起人/主办
+ * - approval(1) = 审批
+ * - cc(2) = 抄送
+ * - conditionBranch(4) = 条件分支
+ *
+ * FlowLong NodeSetType:
+ * - specifyMembers(1) = 指定成员
+ * - supervisor(2) = 主管
+ * - role(3) = 角色
+ * - initiatorSelected(4) = 发起人自选
+ * - initiatorThemselves(5) = 发起人自己
+ * - multiLevelSupervisors(6) = 连续多级主管
+ * - department(7) = 部门
  */
 
 // flowlong-designer 的节点类型
@@ -56,61 +73,17 @@ export interface FlowlongProcessModel {
 }
 
 /**
- * 节点类型映射表：flowlong-designer -> forge-admin 后端
- * flowlong-designer: 0=发起人, 1=审批人, 2=抄送人, 3=条件, 4=条件路由
- * forge-admin: 1=开始, 2=审批, 3=抄送, 4=结束, 5=条件
- */
-const NODE_TYPE_MAP: Record<number, number> = {
-  0: 1, // 发起人 -> 开始节点
-  1: 2, // 审批人 -> 审批节点
-  2: 3, // 抄送人 -> 抄送节点
-  4: 5  // 条件路由 -> 条件分支
-}
-
-/**
- * 候选人策略映射表：flowlong-designer setType -> forge-admin CandidateStrategyEnum
- */
-const STRATEGY_MAP: Record<number, number> = {
-  1: 30, // 指定成员 -> USER
-  2: 37, // 部门负责人 -> START_USER_DEPT_LEADER
-  3: 10, // 角色 -> ROLE
-  4: 35, // 发起人自选 -> START_USER_SELECT
-  5: 36, // 发起人自己 -> START_USER
-  6: 34, // 审批人自选 -> APPROVE_USER_SELECT
-  7: 38, // 连续多级部门负责人 -> DEPT_LEADER_MULTI
-  8: 60  // 表达式 -> EXPRESSION
-}
-
-/**
- * 反向映射：forge-admin CandidateStrategyEnum -> flowlong-designer setType
- */
-const STRATEGY_REVERSE_MAP: Record<number, number> = {
-  30: 1,  // USER -> 指定成员
-  37: 2,  // START_USER_DEPT_LEADER -> 部门负责人
-  10: 3,  // ROLE -> 角色
-  35: 4,  // START_USER_SELECT -> 发起人自选
-  36: 5,  // START_USER -> 发起人自己
-  34: 6,  // APPROVE_USER_SELECT -> 审批人自选
-  38: 7,  // DEPT_LEADER_MULTI -> 连续多级部门负责人
-  60: 8   // EXPRESSION -> 表达式
-}
-
-/**
- * 反向节点类型映射：forge-admin -> flowlong-designer
- */
-const NODE_TYPE_REVERSE_MAP: Record<number, number> = {
-  1: 0, // 开始节点 -> 发起人
-  2: 1, // 审批节点 -> 审批人
-  3: 2, // 抄送节点 -> 抄送人
-  5: 4  // 条件分支 -> 条件路由
-}
-
-/**
  * 数据转换 Hook
+ *
+ * 设计器格式与 FlowLong 格式基本一致，主要需要：
+ * 1. 保持 type 和 setType 值不变
+ * 2. 确保 nodeAssigneeList 字段存在（FlowLong 需要）
  */
 export function useFlowLongDataTransform() {
   /**
-   * 将 flowlong-designer 格式转换为后端格式
+   * 将 flowlong-designer 格式转换为 FlowLong 引擎格式
+   *
+   * 注意：设计器格式与 FlowLong 格式基本一致，主要是确保必要的字段存在
    */
   const transformDesignerToBackend = (designerModel: FlowlongProcessModel): FlowLongNodeModel => {
     const transformNode = (node: FlowlongNodeModel | undefined): FlowLongNodeModel | undefined => {
@@ -119,41 +92,58 @@ export function useFlowLongDataTransform() {
       const result: FlowLongNodeModel = {
         nodeName: node.nodeName,
         nodeKey: node.nodeKey,
-        type: NODE_TYPE_MAP[node.type] || node.type,
+        // 直接使用设计器的 type 值，不转换！FlowLong 使用相同的值
+        type: node.type,
+        // 保持 setType 不变
+        setType: node.setType,
+        // 保持 nodeAssigneeList 不变（这是 FlowLong 必需的字段）
+        nodeAssigneeList: node.nodeAssigneeList,
         childNode: transformNode(node.childNode)
       }
 
-      // 处理审批节点/抄送节点的候选人
+      // 处理审批节点（type=1）和抄送节点（type=2）的配置
       if (node.type === 1 || node.type === 2) {
-        const setType = node.setType ?? 1
-        const strategy = STRATEGY_MAP[setType] ?? 30
-
-        result.nodeCandidate = {
-          strategy,
-          users: node.setType === 1 ? node.nodeAssigneeList?.map(a => a.id) : undefined,
-          roles: node.setType === 3 ? node.nodeAssigneeList?.map(a => a.id) : undefined,
-          initiator: node.setType === 5 ? true : undefined,
-          directorLevel: node.setType === 2 ? node.examineLevel : (node.setType === 7 ? node.directorLevel : undefined)
+        // 审批配置
+        if (node.examineMode !== undefined) {
+          result.examineMode = node.examineMode
+        }
+        if (node.termAuto !== undefined) {
+          result.termAuto = node.termAuto
+        }
+        if (node.term !== undefined) {
+          result.term = node.term
+        }
+        if (node.termMode !== undefined) {
+          result.termMode = node.termMode
+        }
+        if (node.userSelectFlag !== undefined) {
+          result.userSelectFlag = node.userSelectFlag
+        }
+        if (node.expression !== undefined) {
+          result.expression = node.expression
         }
 
-        // 保留审批配置
-        result.extendConfig = {
-          examineMode: node.examineMode,
-          termAuto: node.termAuto,
-          term: node.term,
-          termMode: node.termMode,
-          userSelectFlag: node.userSelectFlag,
-          expression: node.expression
+        // 主管层级
+        if (node.examineLevel !== undefined) {
+          result.examineLevel = node.examineLevel
+        }
+        if (node.directorLevel !== undefined) {
+          result.directorLevel = node.directorLevel
+        }
+        if (node.directorMode !== undefined) {
+          result.directorMode = node.directorMode
         }
       }
 
-      // 处理条件分支
+      // 处理条件分支（type=4）
       if (node.type === 4 && node.conditionNodes) {
         result.conditionNodes = node.conditionNodes.map(cn => ({
-          nodeId: cn.nodeKey,
           nodeName: cn.nodeName,
-          // 设计器使用二维数组（条件组），将一维数组包装成单个条件组
-          conditionList: cn.conditionList ? [cn.conditionList] : [],
+          nodeKey: cn.nodeKey,
+          type: cn.type,
+          priorityLevel: cn.priorityLevel,
+          conditionMode: cn.conditionMode,
+          conditionList: cn.conditionList,
           childNode: transformNode(cn.childNode)
         })) as any
       }
@@ -165,7 +155,7 @@ export function useFlowLongDataTransform() {
   }
 
   /**
-   * 将后端格式转换为 flowlong-designer 格式
+   * 将 FlowLong 后端格式转换为 flowlong-designer 格式
    */
   const transformBackendToDesigner = (backendModel: FlowLongNodeModel): FlowlongProcessModel => {
     const transformNode = (node: FlowLongNodeModel | undefined): FlowlongNodeModel | undefined => {
@@ -174,59 +164,53 @@ export function useFlowLongDataTransform() {
       const result: FlowlongNodeModel = {
         nodeName: node.nodeName,
         nodeKey: node.nodeKey,
-        type: NODE_TYPE_REVERSE_MAP[node.type] || node.type,
+        // 直接使用后端的 type 值，不转换
+        type: node.type,
+        setType: node.setType,
+        nodeAssigneeList: node.nodeAssigneeList,
         childNode: transformNode(node.childNode)
       }
 
-      // 处理审批节点/抄送节点的候选人
-      if (node.nodeCandidate) {
-        const strategy = node.nodeCandidate.strategy ?? 30
-        const setType = STRATEGY_REVERSE_MAP[strategy] ?? 1
-        result.setType = setType
-
-        // 转换 nodeAssigneeList
-        if (setType === 1 && node.nodeCandidate.users) {
-          result.nodeAssigneeList = node.nodeCandidate.users.map(id => ({ id, name: '' }))
-        } else if (setType === 3 && node.nodeCandidate.roles) {
-          result.nodeAssigneeList = node.nodeCandidate.roles.map(id => ({ id, name: '' }))
-        }
-
-        // 设置主管层级
-        if (setType === 2) {
-          result.examineLevel = node.nodeCandidate.directorLevel || 1
-        } else if (setType === 7) {
-          result.directorLevel = node.nodeCandidate.directorLevel || 1
-        }
+      // 处理审批配置
+      if (node.examineMode !== undefined) {
+        result.examineMode = node.examineMode
       }
-
-      // 处理 extendConfig
-      if (node.extendConfig) {
-        result.examineMode = node.extendConfig.examineMode
-        result.termAuto = node.extendConfig.termAuto
-        result.term = node.extendConfig.term
-        result.termMode = node.extendConfig.termMode
-        result.userSelectFlag = node.extendConfig.userSelectFlag
-        result.expression = node.extendConfig.expression
+      if (node.termAuto !== undefined) {
+        result.termAuto = node.termAuto
+      }
+      if (node.term !== undefined) {
+        result.term = node.term
+      }
+      if (node.termMode !== undefined) {
+        result.termMode = node.termMode
+      }
+      if (node.userSelectFlag !== undefined) {
+        result.userSelectFlag = node.userSelectFlag
+      }
+      if (node.expression !== undefined) {
+        result.expression = node.expression
+      }
+      if (node.examineLevel !== undefined) {
+        result.examineLevel = node.examineLevel
+      }
+      if (node.directorLevel !== undefined) {
+        result.directorLevel = node.directorLevel
+      }
+      if (node.directorMode !== undefined) {
+        result.directorMode = node.directorMode
       }
 
       // 处理条件分支
-      if (node.type === 5 && node.conditionNodes) {
-        result.type = 4 // 条件路由
-        result.conditionNodes = node.conditionNodes.map(cn => {
-          // 后端使用一维数组，将二维数组展平（取第一个条件组）
-          const flatConditionList = (cn.conditionList && cn.conditionList.length > 0)
-            ? cn.conditionList.flat()
-            : []
-          return {
-            nodeName: cn.nodeName,
-            nodeKey: cn.nodeId,
-            type: 3,
-            priorityLevel: 1,
-            conditionMode: 1,
-            conditionList: flatConditionList,
-            childNode: transformNode(cn.childNode)
-          }
-        }) as any
+      if (node.type === 4 && node.conditionNodes) {
+        result.conditionNodes = node.conditionNodes.map(cn => ({
+          nodeName: cn.nodeName,
+          nodeKey: cn.nodeKey,
+          type: cn.type || 3,
+          priorityLevel: cn.priorityLevel || 1,
+          conditionMode: cn.conditionMode || 1,
+          conditionList: cn.conditionList || [],
+          childNode: transformNode(cn.childNode)
+        })) as any
       }
 
       return result
@@ -249,7 +233,7 @@ export function useFlowLongDataTransform() {
       nodeConfig: {
         nodeName: '发起人',
         nodeKey: 'start_' + Date.now(),
-        type: 0,
+        type: 0, // FlowLong TaskType.major = 0
         nodeAssigneeList: [],
         childNode: undefined
       }
@@ -259,8 +243,6 @@ export function useFlowLongDataTransform() {
   return {
     transformDesignerToBackend,
     transformBackendToDesigner,
-    createInitialModel,
-    NODE_TYPE_MAP,
-    STRATEGY_MAP
+    createInitialModel
   }
 }

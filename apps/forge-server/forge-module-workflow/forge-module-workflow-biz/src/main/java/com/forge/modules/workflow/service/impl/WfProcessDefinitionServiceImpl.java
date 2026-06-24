@@ -140,8 +140,9 @@ public class WfProcessDefinitionServiceImpl implements WfProcessDefinitionServic
         FlowCreator flowCreator = createFlowCreator(currentUserId);
 
         // 部署流程（直接使用 FlowLong JSON 格式）
+        // repeat=true：每次部署都会创建新版本（版本号自动递增）
         InputStream inputStream = new ByteArrayInputStream(request.getModelJson().getBytes(StandardCharsets.UTF_8));
-        Long processId = processService.deploy(inputStream, flowCreator, false, process -> {
+        Long processId = processService.deploy(inputStream, flowCreator, true, process -> {
             process.setProcessName(request.getName());
             process.setProcessType(request.getFormType() != null ? String.valueOf(request.getFormType()) : null);
             process.setRemark(request.getDescription());

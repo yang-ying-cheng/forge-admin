@@ -139,7 +139,7 @@
               type="success" link size="small"
               @click.stop="handleStartProcess(row)"
             >发起</el-button>
-            <el-button type="primary" link size="small" @click.stop="handleViewXml(row)">XML</el-button>
+            <el-button type="primary" link size="small" @click.stop="handleViewJson(row)">JSON</el-button>
             <el-button
               v-if="row.suspensionState === 1"
               v-permission="'workflow:process:edit'"
@@ -183,7 +183,7 @@
           size="small" type="success"
           @click.stop="handleStartProcess(item)"
         >发起</el-button>
-        <el-button size="small" @click.stop="handleViewXml(item)">XML</el-button>
+        <el-button size="small" @click.stop="handleViewJson(item)">JSON</el-button>
         <el-button
           v-if="item.suspensionState === 1"
           v-permission="'workflow:process:edit'"
@@ -204,11 +204,11 @@
       </template>
     </MobileBottomActions>
 
-    <!-- XML预览对话框 -->
-    <el-dialog v-model="xmlDialogVisible" title="BPMN XML" width="700px">
+    <!-- JSON预览对话框 -->
+    <el-dialog v-model="jsonDialogVisible" title="流程模型 JSON" width="700px">
       <el-input
         type="textarea"
-        :model-value="currentXml"
+        :model-value="currentJson"
         :rows="20"
         readonly
         style="font-family: monospace"
@@ -338,9 +338,9 @@ const activeConditionsCount = computed(() => {
   return count
 })
 
-// XML预览
-const xmlDialogVisible = ref(false)
-const currentXml = ref('')
+// JSON预览
+const jsonDialogVisible = ref(false)
+const currentJson = ref('')
 
 // 关联工具栏与表格
 onMounted(() => {
@@ -394,14 +394,14 @@ const handleResetFromDrawer = () => {
   handleReset()
 }
 
-/** 查看XML */
-const handleViewXml = async (row: ProcessDefinition) => {
+/** 查看JSON */
+const handleViewJson = async (row: ProcessDefinition) => {
   cancelSelection()
   try {
-    currentXml.value = await processDefinitionApi.getXml(row.id)
-    xmlDialogVisible.value = true
+    currentJson.value = await processDefinitionApi.getJson(row.id)
+    jsonDialogVisible.value = true
   } catch (e) {
-    ElMessage.error('获取XML失败')
+    ElMessage.error('获取JSON失败')
   }
 }
 
@@ -537,10 +537,13 @@ const handleConfirmStart = async () => {
 
   startLoading.value = true
   try {
-    // startFormFApi.value 就是表单数据本身（v-model 绑定的）
+    // 使用 form-create API 获取表单数据
     let variables: Record<string, any> = {}
-    if (startFormFApi.value && Object.keys(startFormFApi.value).length > 0) {
-      Object.assign(variables, startFormFApi.value)
+    if (startFormFApi.value) {
+      const formData = startFormFApi.value.formData()
+      if (formData && Object.keys(formData).length > 0) {
+        Object.assign(variables, formData)
+      }
     }
 
     // 发起人自选：设置 {taskDefKey}_candidateUsers 变量

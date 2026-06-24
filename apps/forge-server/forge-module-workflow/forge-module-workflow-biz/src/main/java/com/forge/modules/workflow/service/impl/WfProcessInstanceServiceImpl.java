@@ -24,11 +24,13 @@ import com.forge.modules.workflow.framework.diagram.FlowLongDiagramGenerator;
 import com.aizuda.bpm.mybatisplus.mapper.FlwHisInstanceMapper;
 import com.aizuda.bpm.mybatisplus.mapper.FlwHisTaskMapper;
 import com.aizuda.bpm.mybatisplus.mapper.FlwInstanceMapper;
+import com.aizuda.bpm.mybatisplus.mapper.FlwTaskActorMapper;
 import com.forge.modules.workflow.mapper.WfApprovalCommentMapper;
 import com.forge.modules.workflow.mapper.WfProcessExtMapper;
 import com.forge.modules.workflow.service.ProcessNoGenerator;
 import com.forge.modules.workflow.service.WfProcessInstanceCopyService;
 import com.forge.modules.workflow.service.WfProcessInstanceService;
+import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,7 +53,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
-
+    @Resource
+    private FlowLongEngine flowLongEngine;
     private final RuntimeService runtimeService;
     private final ProcessService processService;
     private final QueryService queryService;
@@ -59,6 +62,7 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
     private final FlwInstanceMapper instanceMapper;
     private final FlwHisInstanceMapper hisInstanceMapper;
     private final FlwHisTaskMapper hisTaskMapper;
+    private final FlwTaskActorMapper taskActorMapper;
     private final FlowLongDiagramGenerator diagramGenerator;
     private final FlowLongIdentityService identityService;
     private final WfApprovalCommentMapper approvalCommentMapper;
@@ -122,32 +126,31 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
                 ? new HashMap<>(request.getVariables()) : new HashMap<>();
         variables.put("initiator", String.valueOf(currentUserId));
         variables.put("processNo", processNoGenerator.generateNo());
+        flowLongEngine.startInstanceById(processId, flowCreator, variables).ifPresent(instance -> {
 
-        // 创建流程实例
-        FlwInstance instance = runtimeService.createInstance(process, flowCreator, variables, null, false, null);
+            // 获取发起后的第一个任务
+            List<FlwTask> tasks = queryService.getTasksByInstanceId(instance.getId());
+            FlwTask firstTask = tasks.isEmpty() ? null : tasks.get(0);
 
-        // 获取发起后的第一个任务
-        List<FlwTask> tasks = queryService.getTasksByInstanceId(instance.getId());
-        FlwTask firstTask = tasks.isEmpty() ? null : tasks.get(0);
+            // 保存初始提交意见
+            String userName = identityService.getUserName(currentUserId);
+            String taskDefKey = firstTask != null ? firstTask.getTaskKey() : "start";
+            String taskName = firstTask != null ? firstTask.getTaskName() : "发起流程";
 
-        // 保存初始提交意见
-        String userName = identityService.getUserName(currentUserId);
-        String taskDefKey = firstTask != null ? firstTask.getTaskKey() : "start";
-        String taskName = firstTask != null ? firstTask.getTaskName() : "发起流程";
+            saveApprovalComment(
+                    instance.getId(),
+                    firstTask != null ? firstTask.getId() : null,
+                    taskDefKey,
+                    taskName,
+                    currentUserId,
+                    userName,
+                    ApprovalActionTypeEnum.SUBMIT.getCode(),
+                    request.getComment()
+            );
 
-        saveApprovalComment(
-                instance.getId(),
-                firstTask != null ? firstTask.getId() : null,
-                taskDefKey,
-                taskName,
-                currentUserId,
-                userName,
-                ApprovalActionTypeEnum.SUBMIT.getCode(),
-                request.getComment()
-        );
-
-        log.info("流程发起成功：processId={}, instanceId={}, startUser={}",
-                processId, instance.getId(), currentUserId);
+            log.info("流程发起成功：processId={}, instanceId={}, startUser={}",
+                    processId, instance.getId(), currentUserId);
+        });
     }
 
     @Override
@@ -582,6 +585,9 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
         // 当前节点信息
         response.setCurrentActivityName(instance.getCurrentNodeName());
 
+        // 获取当前任务的受理人/候选人信息
+        fillCurrentAssigneeInfo(response, instance.getId());
+
         // 流程编号
         String variableJson = instance.getVariable();
         if (StrUtil.isNotBlank(variableJson)) {
@@ -601,6 +607,52 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
         }
 
         return response;
+    }
+
+    /**
+     * 填充当前任务的受理人/候选人信息
+     */
+    private void fillCurrentAssigneeInfo(ProcessInstanceResponse response, Long instanceId) {
+        // 获取当前实例的所有活动任务
+        List<FlwTask> tasks = queryService.getTasksByInstanceId(instanceId);
+        if (tasks.isEmpty()) {
+            return;
+        }
+
+        List<String> assigneeNames = new ArrayList<>();
+        List<String> candidateNames = new ArrayList<>();
+
+        for (FlwTask task : tasks) {
+            // 查询任务的参与者
+            LambdaQueryWrapper<FlwTaskActor> actorWrapper = new LambdaQueryWrapper<>();
+            actorWrapper.eq(FlwTaskActor::getTaskId, task.getId());
+            List<FlwTaskActor> taskActors = taskActorMapper.selectList(actorWrapper);
+
+            for (FlwTaskActor actor : taskActors) {
+                String actorName = actor.getActorName();
+                if (StrUtil.isBlank(actorName)) {
+                    // 如果 actorName 为空，尝试通过 ID 获取名称
+                    if (actor.getActorType() == 0) {
+                        // 用户类型
+                        actorName = identityService.getUserName(actor.getActorId());
+                    } else if (actor.getActorType() == 1) {
+                        // 角色/组类型
+                        actorName = identityService.getGroupName(Long.parseLong(actor.getActorId()));
+                    }
+                }
+
+                if (actor.getActorType() == 0) {
+                    // 用户类型 - 直接作为受理人或候选人
+                    assigneeNames.add(actorName);
+                } else if (actor.getActorType() == 1) {
+                    // 角色/组类型 - 作为候选组
+                    candidateNames.add(actorName);
+                }
+            }
+        }
+
+        response.setCurrentAssigneeNames(assigneeNames);
+        response.setCurrentCandidateNames(candidateNames);
     }
 
     /**
