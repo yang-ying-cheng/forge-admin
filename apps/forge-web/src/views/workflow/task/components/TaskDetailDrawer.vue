@@ -173,8 +173,7 @@
     <!-- 流程图弹窗 -->
     <FlowDiagramDialog
       v-model="diagramDialogVisible"
-      :bpmn-xml="bpmnXml"
-      :active-activity-ids="activeActivityIds"
+      :process-instance-id="taskInfo?.processInstanceId"
     />
 
     <!-- 委派对话框 -->

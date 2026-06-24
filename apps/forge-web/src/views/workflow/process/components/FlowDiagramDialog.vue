@@ -16,10 +16,12 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { processDefinitionApi } from '@/api/workflow/process-definition'
+import { processInstanceApi } from '@/api/workflow/process-instance'
 
 const props = defineProps<{
   modelValue: boolean
   processDefinitionId?: string
+  processInstanceId?: string
 }>()
 
 const emit = defineEmits<{
@@ -35,17 +37,24 @@ const loading = ref(false)
 const svgContent = ref('')
 
 watch(visible, async (val) => {
-  if (val && props.processDefinitionId) {
+  if (val) {
     await loadDiagram()
   }
 })
 
 const loadDiagram = async () => {
-  if (!props.processDefinitionId) return
-
   loading.value = true
   try {
-    const blob = await processDefinitionApi.getDiagram(props.processDefinitionId)
+    let blob: Blob
+    if (props.processInstanceId) {
+      // 优先使用实例 ID，获取带高亮的流程图
+      blob = await processInstanceApi.getDiagram(props.processInstanceId)
+    } else if (props.processDefinitionId) {
+      // 使用流程定义 ID，获取基础流程图
+      blob = await processDefinitionApi.getDiagram(props.processDefinitionId)
+    } else {
+      return
+    }
     const text = await blob.text()
     svgContent.value = text
   } catch (error) {

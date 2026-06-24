@@ -23,6 +23,8 @@ import com.forge.modules.workflow.mapper.WfProcessExtMapper;
 import com.forge.modules.workflow.service.WfModelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +48,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class WfModelServiceImpl implements WfModelService {
+    private static final Logger log = LoggerFactory.getLogger(WfModelServiceImpl.class);
 
     private final ProcessService processService;
     private final QueryService queryService;

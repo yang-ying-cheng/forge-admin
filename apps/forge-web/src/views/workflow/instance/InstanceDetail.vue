@@ -94,7 +94,7 @@
     <!-- 流程图弹窗 -->
     <FlowDiagramDialog
       v-model="diagramDialogVisible"
-      :process-definition-id="instance?.processDefinitionId"
+      :process-instance-id="instanceId"
     />
   </div>
 </template>
