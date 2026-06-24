@@ -506,6 +506,17 @@ public class WfTaskServiceImpl implements WfTaskService {
             }
 
             response.setStartTime(instance.getCreateTime());
+
+            // 流程编号
+            String variableJson = instance.getVariable();
+            if (StrUtil.isNotBlank(variableJson)) {
+                try {
+                    Map<String, Object> variables = new ObjectMapper().readValue(variableJson, Map.class);
+                    if (variables.get("processNo") != null) {
+                        response.setProcessNo(variables.get("processNo").toString());
+                    }
+                } catch (Exception ignored) {}
+            }
         }
 
         return response;
