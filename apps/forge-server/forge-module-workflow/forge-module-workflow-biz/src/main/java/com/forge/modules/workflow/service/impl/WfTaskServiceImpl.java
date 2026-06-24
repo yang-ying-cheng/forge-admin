@@ -400,8 +400,22 @@ public class WfTaskServiceImpl implements WfTaskService {
         Long currentUserId = SecurityUtils.getCurrentUserId();
         Long id = parseTaskId(taskId);
 
+        // 获取历史任务信息
+        FlwHisTask hisTask = hisTaskMapper.selectById(id);
+        if (hisTask == null) {
+            throw new BusinessException(404, "任务不存在");
+        }
+
+        // 检查流程实例是否还在运行中
+        FlwInstance activeInstance = instanceMapper.selectById(hisTask.getInstanceId());
+        if (activeInstance == null) {
+            throw new BusinessException(400, "流程已结束，无法撤回");
+        }
+
         FlowCreator flowCreator = createFlowCreator(currentUserId);
         taskService.withdrawTask(id, flowCreator);
+        saveApprovalComment(hisTask, currentUserId, identityService.getUserName(currentUserId),
+                ApprovalActionTypeEnum.WITHDRAW.getCode(), "任务撤回");
 
         log.info("任务撤回成功：taskId={}", taskId);
     }
@@ -600,6 +614,12 @@ public class WfTaskServiceImpl implements WfTaskService {
                         .atZone(java.time.ZoneId.systemDefault()).toInstant()));
             }
         }
+
+        response.setWithdrawn(
+                hisTask.getTaskType().equals(TaskType.withdraw.getValue())
+                ||hisTask.getTaskType().equals(TaskType.saveAsDraft.getValue())
+                || ApprovalActionTypeEnum.WITHDRAW.getCode().equals(response.getActionType())
+        );
 
         // 补充下一节点名称：查找当前任务完成后，下一个创建的任务
         if (hisTask.getFinishTime() != null) {

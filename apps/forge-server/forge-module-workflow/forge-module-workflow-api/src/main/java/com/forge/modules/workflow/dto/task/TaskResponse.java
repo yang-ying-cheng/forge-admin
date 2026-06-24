@@ -143,4 +143,9 @@ public class TaskResponse {
      * 流转节点名称（已办任务审批后流转到的下一节点）
      */
     private String nextActivityName;
+
+    /**
+     * 是否已被撤回（已办任务）
+     */
+    private Boolean withdrawn;
 }

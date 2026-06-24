@@ -68,7 +68,7 @@
         <vxe-column title="操作" width="140" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click.stop="handleView(row)">查看</el-button>
-            <el-button type="warning" link size="small" @click.stop="handleWithdraw(row)">撤回</el-button>
+            <el-button v-if="!row.withdrawn" type="warning" link size="small" @click.stop="handleWithdraw(row)">撤回</el-button>
           </template>
         </vxe-column>
       </vxe-table>

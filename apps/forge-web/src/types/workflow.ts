@@ -140,6 +140,7 @@ export interface TaskInfo {
   actionType?: string
   commentText?: string
   nextActivityName?: string
+  withdrawn?: boolean
 }
 
 export interface TaskQuery {
