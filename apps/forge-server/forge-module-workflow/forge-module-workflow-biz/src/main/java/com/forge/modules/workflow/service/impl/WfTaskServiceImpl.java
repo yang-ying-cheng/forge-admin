@@ -585,6 +585,35 @@ public class WfTaskServiceImpl implements WfTaskService {
             }
         }
 
+        // 补充审批意见信息：动作、审批意见、审批时间
+        LambdaQueryWrapper<WfApprovalComment> commentWrapper = new LambdaQueryWrapper<>();
+        commentWrapper.eq(WfApprovalComment::getTaskId, hisTask.getId());
+        commentWrapper.orderByDesc(WfApprovalComment::getCreateTime);
+        commentWrapper.last("LIMIT 1");
+        WfApprovalComment approvalComment = approvalCommentMapper.selectOne(commentWrapper);
+        if (approvalComment != null) {
+            response.setActionType(approvalComment.getActionType());
+            response.setCommentText(approvalComment.getCommentText());
+            // 审批时间取审批意见表的创建时间
+            if (approvalComment.getCreateTime() != null) {
+                response.setEndTime(Date.from(approvalComment.getCreateTime()
+                        .atZone(java.time.ZoneId.systemDefault()).toInstant()));
+            }
+        }
+
+        // 补充下一节点名称：查找当前任务完成后，下一个创建的任务
+        if (hisTask.getFinishTime() != null) {
+            LambdaQueryWrapper<FlwHisTask> nextTaskWrapper = new LambdaQueryWrapper<>();
+            nextTaskWrapper.eq(FlwHisTask::getInstanceId, hisTask.getInstanceId());
+            nextTaskWrapper.gt(FlwHisTask::getCreateTime, hisTask.getFinishTime());
+            nextTaskWrapper.orderByAsc(FlwHisTask::getCreateTime);
+            nextTaskWrapper.last("LIMIT 1");
+            FlwHisTask nextTask = hisTaskMapper.selectOne(nextTaskWrapper);
+            if (nextTask != null) {
+                response.setNextActivityName(nextTask.getTaskName());
+            }
+        }
+
         return response;
     }
 }

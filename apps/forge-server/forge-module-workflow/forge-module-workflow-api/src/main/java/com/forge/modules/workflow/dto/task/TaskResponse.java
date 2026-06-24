@@ -115,7 +115,7 @@ public class TaskResponse {
     private Map<String, Object> variables;
 
     /**
-     * 结束时间（历史任务）
+     * 审批时间（已办任务，取审批意见表的创建时间）
      */
     private Date endTime;
 
@@ -140,7 +140,7 @@ public class TaskResponse {
     private String commentText;
 
     /**
-     * 下一节点名称（已办任务）
+     * 流转节点名称（已办任务审批后流转到的下一节点）
      */
     private String nextActivityName;
 }

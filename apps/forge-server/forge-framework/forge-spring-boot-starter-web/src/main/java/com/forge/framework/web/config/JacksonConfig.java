@@ -10,9 +10,7 @@ import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalTimeDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalTimeSerializer;
-import com.forge.common.json.LongSerializer;
-import com.forge.common.json.TimestampLocalDateTimeDeserializer;
-import com.forge.common.json.TimestampLocalDateTimeSerializer;
+import com.forge.common.json.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -23,6 +21,7 @@ import org.springframework.context.annotation.Primary;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -53,6 +52,9 @@ public class JacksonConfig {
                 // LocalTime 序列化/反序列化
                 .addSerializer(LocalTime.class, LocalTimeSerializer.INSTANCE)
                 .addDeserializer(LocalTime.class, LocalTimeDeserializer.INSTANCE)
+
+                .addSerializer(Date.class, DateSerializer.INSTANCE)
+                .addDeserializer(Date.class, DateDeserializer.INSTANCE)
                 // LocalDateTime 序列化/反序列化，使用秒级时间戳
                 .addSerializer(LocalDateTime.class, TimestampLocalDateTimeSerializer.INSTANCE)
                 .addDeserializer(LocalDateTime.class, TimestampLocalDateTimeDeserializer.INSTANCE);
@@ -86,6 +88,8 @@ public class JacksonConfig {
                 .addDeserializer(LocalDate.class, LocalDateDeserializer.INSTANCE)
                 .addSerializer(LocalTime.class, LocalTimeSerializer.INSTANCE)
                 .addDeserializer(LocalTime.class, LocalTimeDeserializer.INSTANCE)
+                .addSerializer(Date.class, DateSerializer.INSTANCE)
+                .addDeserializer(Date.class, DateDeserializer.INSTANCE)
                 .addSerializer(LocalDateTime.class, TimestampLocalDateTimeSerializer.INSTANCE)
                 .addDeserializer(LocalDateTime.class, TimestampLocalDateTimeDeserializer.INSTANCE);
 
