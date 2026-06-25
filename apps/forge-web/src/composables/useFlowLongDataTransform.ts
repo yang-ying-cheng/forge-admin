@@ -12,6 +12,19 @@ import type { FlowLongNodeModel } from './useFlowLongDesigner'
  * - conditionBranch(4) = 条件分支节点
  */
 
+/**
+ * AI 审批配置
+ */
+export interface FlowlongAiApprovalConfig {
+  enabled: boolean // 是否启用 AI 审批
+  provider: string // AI 模型提供商（deepseek/qwen/glm/ernie）
+  modelName: string // 模型名称
+  confidenceThreshold: number // 置信度阈值（0-100）
+  fallbackStrategy: string // 回退策略（MANUAL/DEFAULT_PASS/DEFAULT_REJECT）
+  customPrompt?: string // 自定义审批提示词
+  timeoutSeconds?: number // 超时时间（秒）
+}
+
 // flowlong-designer 的节点类型（与 FlowLong TaskType 一致）
 export interface FlowlongNodeModel {
   nodeName: string
@@ -37,6 +50,9 @@ export interface FlowlongNodeModel {
   conditionNodes?: FlowlongConditionNode[]
   conditionList?: FlowlongCondition[][] // 条件列表（条件组数组）
   childNode?: FlowlongNodeModel
+  // AI 审批配置
+  aiApproval?: boolean // 是否启用 AI 审批（开关）
+  aiApprovalConfig?: FlowlongAiApprovalConfig // AI 审批详细配置
 }
 
 export interface FlowlongNodeAssignee {
@@ -98,16 +114,30 @@ export function useFlowLongDataTransform() {
         if (node.termAuto !== undefined) result.termAuto = node.termAuto
         if (node.term !== undefined) result.term = node.term
         if (node.termMode !== undefined) result.termMode = node.termMode
-        // 超时提醒配置
-        if (node.remindAuto !== undefined) result.remindAuto = node.remindAuto
-        if (node.remindAdvanceMinutes !== undefined) result.remindAdvanceMinutes = node.remindAdvanceMinutes
-        if (node.remindIntervalHours !== undefined) result.remindIntervalHours = node.remindIntervalHours
-        if (node.remindChannels !== undefined) result.remindChannels = node.remindChannels
         if (node.userSelectFlag !== undefined) result.userSelectFlag = node.userSelectFlag
         if (node.expression !== undefined) result.expression = node.expression
         if (node.examineLevel !== undefined) result.examineLevel = node.examineLevel
         if (node.directorLevel !== undefined) result.directorLevel = node.directorLevel
         if (node.directorMode !== undefined) result.directorMode = node.directorMode
+
+        // extendConfig 用于存储扩展配置（超时提醒、AI审批等）
+        const extendConfig: Record<string, any> = {}
+
+        // 超时提醒配置放入 extendConfig
+        if (node.remindAuto !== undefined) extendConfig.remindAuto = node.remindAuto
+        if (node.remindAdvanceMinutes !== undefined) extendConfig.remindAdvanceMinutes = node.remindAdvanceMinutes
+        if (node.remindIntervalHours !== undefined) extendConfig.remindIntervalHours = node.remindIntervalHours
+        if (node.remindChannels !== undefined) extendConfig.remindChannels = node.remindChannels
+
+        // AI 审批配置放入 extendConfig.aiApproval
+        if (node.aiApproval && node.aiApprovalConfig) {
+          extendConfig.aiApproval = node.aiApprovalConfig
+        }
+
+        // 如果有扩展配置，添加到 result
+        if (Object.keys(extendConfig).length > 0) {
+          result.extendConfig = extendConfig
+        }
       }
 
       // 条件分支（type=4）
@@ -145,20 +175,31 @@ export function useFlowLongDataTransform() {
         childNode: transformNode(node.childNode)
       }
 
+      // 基础审批配置
       if (node.examineMode !== undefined) result.examineMode = node.examineMode
       if (node.termAuto !== undefined) result.termAuto = node.termAuto
       if (node.term !== undefined) result.term = node.term
       if (node.termMode !== undefined) result.termMode = node.termMode
-      // 超时提醒配置
-      if (node.remindAuto !== undefined) result.remindAuto = node.remindAuto
-      if (node.remindAdvanceMinutes !== undefined) result.remindAdvanceMinutes = node.remindAdvanceMinutes
-      if (node.remindIntervalHours !== undefined) result.remindIntervalHours = node.remindIntervalHours
-      if (node.remindChannels !== undefined) result.remindChannels = node.remindChannels
       if (node.userSelectFlag !== undefined) result.userSelectFlag = node.userSelectFlag
       if (node.expression !== undefined) result.expression = node.expression
       if (node.examineLevel !== undefined) result.examineLevel = node.examineLevel
       if (node.directorLevel !== undefined) result.directorLevel = node.directorLevel
       if (node.directorMode !== undefined) result.directorMode = node.directorMode
+
+      // 从 extendConfig 解析扩展配置
+      if (node.extendConfig) {
+        // 超时提醒配置
+        if (node.extendConfig.remindAuto !== undefined) result.remindAuto = node.extendConfig.remindAuto
+        if (node.extendConfig.remindAdvanceMinutes !== undefined) result.remindAdvanceMinutes = node.extendConfig.remindAdvanceMinutes
+        if (node.extendConfig.remindIntervalHours !== undefined) result.remindIntervalHours = node.extendConfig.remindIntervalHours
+        if (node.extendConfig.remindChannels !== undefined) result.remindChannels = node.extendConfig.remindChannels
+
+        // AI 审批配置
+        if (node.extendConfig.aiApproval) {
+          result.aiApproval = true
+          result.aiApprovalConfig = node.extendConfig.aiApproval as FlowlongAiApprovalConfig
+        }
+      }
 
       if (node.type === 4 && node.conditionNodes) {
         result.conditionNodes = node.conditionNodes.map(cn => ({

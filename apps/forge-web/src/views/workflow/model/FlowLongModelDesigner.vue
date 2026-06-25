@@ -138,8 +138,13 @@ const loadModelData = async (id: string) => {
         // 获取节点配置（可能是整个模型对象，也可能是单独的节点配置）
         const nodeConfig = savedModel.nodeConfig || savedModel
 
+        // 将后端格式转换为设计器格式
+        // extendConfig.aiApproval → aiApproval/aiApprovalConfig
+        const transformedModel = transformBackendToDesigner(nodeConfig)
+
         // 修复旧数据中可能被污染的节点类型
-        const fixedNodeConfig = fixNodeTypes(nodeConfig)
+        const fixedNodeConfig = fixNodeTypes(transformedModel.nodeConfig)
+
         processModel.value = {
           name: data.name,
           key: data.key,
@@ -212,12 +217,19 @@ const handleSave = async () => {
   try {
     await ElMessageBox.confirm('确定保存模型？', '保存确认', { type: 'info' })
 
-    // FlowLong 期望的格式: { name, key, nodeConfig: {...} }
-    // 设计器格式与 FlowLong 格式一致，直接保存
-    const processModelJson = {
+    // 转换设计器格式到 FlowLong 后端格式
+    // 将 aiApprovalConfig、remindAuto 等扩展配置放入 extendConfig
+    const transformedNodeConfig = transformDesignerToBackend({
       name: modelData.value?.name || processModel.value.name,
       key: modelData.value?.key || processModel.value.key,
       nodeConfig: processModel.value.nodeConfig
+    })
+
+    // FlowLong 期望的格式: { name, key, nodeConfig: {...} }
+    const processModelJson = {
+      name: modelData.value?.name || processModel.value.name,
+      key: modelData.value?.key || processModel.value.key,
+      nodeConfig: transformedNodeConfig
     }
     await modelApi.update({
       id,

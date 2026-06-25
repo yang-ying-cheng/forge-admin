@@ -102,4 +102,14 @@ public class ProcessInstanceResponse {
      * 删除原因
      */
     private String deleteReason;
+
+    /**
+     * 流程优先级（0-普通, 1-高优先级）
+     */
+    private Integer priority;
+
+    /**
+     * 优先级名称
+     */
+    private String priorityName;
 }

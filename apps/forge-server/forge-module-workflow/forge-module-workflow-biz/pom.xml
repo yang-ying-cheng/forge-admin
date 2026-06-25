@@ -23,6 +23,16 @@
             <groupId>com.forge</groupId>
             <artifactId>forge-module-system-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.forge</groupId>
+            <artifactId>forge-module-ai-api</artifactId>
+        </dependency>
+        <!-- AI 审批需要调用 AI 服务，暂时依赖 biz 层 -->
+        <dependency>
+            <groupId>com.forge</groupId>
+            <artifactId>forge-module-ai-biz</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <!-- TODO: 后续通过 API 接口解耦，改为仅依赖 system-api -->
         <dependency>
             <groupId>com.forge</groupId>

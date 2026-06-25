@@ -40,4 +40,10 @@ public class ProcessStartRequest {
      * value: 审批人ID列表
      */
     private Map<String, String[]> startUserSelectActors;
+
+    /**
+     * 流程优先级（0-普通, 1-高优先级）
+     * 默认为0
+     */
+    private Integer priority = 0;
 }

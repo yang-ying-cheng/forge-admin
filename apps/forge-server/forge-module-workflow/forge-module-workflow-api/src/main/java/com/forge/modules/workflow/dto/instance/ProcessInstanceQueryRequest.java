@@ -54,4 +54,19 @@ public class ProcessInstanceQueryRequest {
      * 状态：running-运行中, finished-已完成, terminated-已终止
      */
     private String status;
+
+    /**
+     * 业务Key（精确匹配）
+     */
+    private String businessKey;
+
+    /**
+     * 优先级筛选
+     */
+    private Integer priority;
+
+    /**
+     * 是否按优先级排序（优先级高的在前）
+     */
+    private Boolean sortByPriority;
 }

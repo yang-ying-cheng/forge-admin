@@ -87,4 +87,21 @@ public interface WfProcessInstanceService {
      * @return 审批详情
      */
     ApprovalDetailResponse getApprovalDetail(String processInstanceId);
+
+    /**
+     * 根据业务Key查询流程实例列表
+     *
+     * @param businessKey 业务Key
+     * @return 流程实例列表
+     */
+    List<ProcessInstanceResponse> getInstancesByBusinessKey(String businessKey);
+
+    /**
+     * 根据流程定义ID和业务Key精确查询流程实例
+     *
+     * @param processDefinitionId 流程定义ID
+     * @param businessKey 业务Key
+     * @return 流程实例详情（如不存在返回null）
+     */
+    ProcessInstanceResponse getInstanceByBusinessKey(String processDefinitionId, String businessKey);
 }

@@ -159,6 +159,67 @@
                 <p style="width: 100%"><el-radio :value="3">或签 (有一人审批通过即可)</el-radio></p>
               </el-radio-group>
             </el-form-item>
+            <el-divider></el-divider>
+            <el-form-item label="">
+              <el-checkbox v-model="form.aiApproval" label="启用 AI 智能审批"></el-checkbox>
+            </el-form-item>
+            <template v-if="form.aiApproval">
+              <el-form-item label="AI 模型提供商">
+                <el-select v-model="form.aiApprovalConfig!.provider" placeholder="选择 AI 提供商">
+                  <el-option value="deepseek" label="DeepSeek"></el-option>
+                  <el-option value="qwen" label="通义千问"></el-option>
+                  <el-option value="glm" label="智谱 GLM"></el-option>
+                  <el-option value="ernie" label="百度文心"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="模型名称">
+                <el-input
+                  v-model="form.aiApprovalConfig!.modelName"
+                  placeholder="如：deepseek-chat、qwen-turbo"
+                />
+              </el-form-item>
+              <el-form-item label="置信度阈值">
+                <el-input-number
+                  v-model="form.aiApprovalConfig!.confidenceThreshold"
+                  :min="0"
+                  :max="100"
+                />
+                %（AI 决策置信度超过此值才自动执行）
+              </el-form-item>
+              <el-form-item label="回退策略">
+                <el-select v-model="form.aiApprovalConfig!.fallbackStrategy" placeholder="选择回退策略">
+                  <el-option value="MANUAL" label="转人工处理"></el-option>
+                  <el-option value="DEFAULT_PASS" label="默认通过"></el-option>
+                  <el-option value="DEFAULT_REJECT" label="默认驳回"></el-option>
+                </el-select>
+                <el-alert
+                  title="当 AI 服务异常或置信度不足时的处理方式"
+                  type="info"
+                  :closable="false"
+                  style="margin-top: 8px"
+                />
+              </el-form-item>
+              <el-form-item label="自定义审批提示词">
+                <el-input
+                  v-model="form.aiApprovalConfig!.customPrompt"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="可选：输入自定义的审批判断提示词，帮助 AI 更准确地做出决策"
+                />
+              </el-form-item>
+              <el-alert
+                title="AI 审批说明"
+                type="warning"
+                :closable="false"
+                style="margin-top: 10px"
+              >
+                <template #default>
+                  <p>启用 AI 审批后，任务创建时会自动调用 AI 服务分析审批内容。</p>
+                  <p>AI 将根据流程数据和自定义提示词判断是否应该通过审批。</p>
+                  <p style="color: #e6a23c">注意：AI 审批结果仅供参考，请根据业务场景谨慎配置。</p>
+                </template>
+              </el-alert>
+            </template>
           </el-form>
         </el-main>
         <el-footer>
@@ -174,7 +235,7 @@
 import { ref, watch, nextTick, inject } from 'vue'
 import { UserFilled, Close, Edit } from '@element-plus/icons-vue'
 import addNode from './addNode.vue'
-import type { FlowlongNodeModel, FlowlongNodeAssignee } from '@/composables/useFlowLongDataTransform'
+import type { FlowlongNodeModel, FlowlongNodeAssignee, FlowlongAiApprovalConfig } from '@/composables/useFlowLongDataTransform'
 
 const props = defineProps<{
   modelValue: FlowlongNodeModel
@@ -192,6 +253,30 @@ const drawer = ref(false)
 const isEditTitle = ref(false)
 const nodeTitleRef = ref<HTMLInputElement | null>(null)
 const form = ref<FlowlongNodeModel>({})
+
+// 默认 AI 审批配置
+const defaultAiApprovalConfig: FlowlongAiApprovalConfig = {
+  enabled: true,
+  provider: 'deepseek',
+  modelName: 'deepseek-chat',
+  confidenceThreshold: 80,
+  fallbackStrategy: 'MANUAL',
+  customPrompt: '',
+  timeoutSeconds: 30
+}
+
+// 监听 AI 审批开关变化，自动初始化配置
+watch(
+  () => form.value.aiApproval,
+  (val) => {
+    if (val && !form.value.aiApprovalConfig) {
+      form.value.aiApprovalConfig = { ...defaultAiApprovalConfig }
+    }
+    if (form.value.aiApprovalConfig) {
+      form.value.aiApprovalConfig.enabled = val
+    }
+  }
+)
 
 watch(
   () => props.modelValue,
@@ -215,6 +300,22 @@ const show = () => {
   if (form.value.remindAuto && !form.value.remindIntervalHours) {
     form.value.remindIntervalHours = 24
   }
+  // 初始化 AI 审批配置默认值
+  if (form.value.aiApproval && !form.value.aiApprovalConfig) {
+    form.value.aiApprovalConfig = {
+      enabled: true,
+      provider: 'deepseek',
+      modelName: 'deepseek-chat',
+      confidenceThreshold: 80,
+      fallbackStrategy: 'MANUAL',
+      customPrompt: '',
+      timeoutSeconds: 30
+    }
+  }
+  // 确保 AI 审批配置的 enabled 与开关状态一致
+  if (form.value.aiApprovalConfig) {
+    form.value.aiApprovalConfig.enabled = form.value.aiApproval
+  }
   drawer.value = true
 }
 
@@ -230,6 +331,14 @@ const saveTitle = () => {
 }
 
 const save = () => {
+  // 确保 AI 审批配置的 enabled 与开关状态一致
+  if (form.value.aiApprovalConfig) {
+    form.value.aiApprovalConfig.enabled = form.value.aiApproval
+  }
+  // 如果关闭了 AI 审批，清除配置
+  if (!form.value.aiApproval) {
+    form.value.aiApprovalConfig = undefined
+  }
   emit('update:modelValue', form.value)
   drawer.value = false
 }

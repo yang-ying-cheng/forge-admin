@@ -158,14 +158,24 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             Map<String, Object> variables = request.getVariables() != null
                     ? new HashMap<>(request.getVariables()) : new HashMap<>();
             variables.put("initiator", String.valueOf(currentUserId));
-            variables.put("processNo", processNoGenerator.generateNo());
+//            variables.put("processNo", processNoGenerator.generateNo());
+
+            // 获取 businessKey 和 priority
+            String businessKey = request.getBusinessKey();
+            Integer priority = request.getPriority() != null ? request.getPriority() : 0;
 
             // 自定义模型校验：跳过已通过 FlowDataTransfer 传递审批人的发起人自选节点
+            // 使用 supplier 创建带有 businessKey 和 priority 的 FlwInstance
             flowLongEngine.startInstanceById(processId, flowCreator, variables, false, nodeModel -> {
                 // 递归检查所有节点
                 checkNodeModelWithDynamicAssignee(nodeModel, dynamicAssigneeNodeKeys);
-            }, null).ifPresent(instance -> {
-
+            }, () -> {
+                FlwInstance instance = FlwInstance.of(businessKey);
+                instance.setPriority(priority);
+                // 设置流程编号
+                instance.setInstanceNo(processNoGenerator.generateNo());
+                return instance;
+            }).ifPresent(instance -> {
                 // 获取发起后的第一个任务
                 List<FlwTask> tasks = queryService.getTasksByInstanceId(instance.getId());
                 FlwTask firstTask = tasks.isEmpty() ? null : tasks.get(0);
@@ -572,7 +582,23 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             wrapper.like(FlwInstance::getCurrentNodeName, request.getProcessName());
         }
 
-        wrapper.orderByDesc(FlwInstance::getCreateTime);
+        // 业务Key精确筛选
+        if (StrUtil.isNotBlank(request.getBusinessKey())) {
+            wrapper.eq(FlwInstance::getBusinessKey, request.getBusinessKey());
+        }
+
+        // 优先级筛选
+        if (request.getPriority() != null) {
+            wrapper.eq(FlwInstance::getPriority, request.getPriority());
+        }
+
+        // 排序：优先级高的在前，或按创建时间
+        if (Boolean.TRUE.equals(request.getSortByPriority())) {
+            wrapper.orderByDesc(FlwInstance::getPriority)
+                   .orderByDesc(FlwInstance::getCreateTime);
+        } else {
+            wrapper.orderByDesc(FlwInstance::getCreateTime);
+        }
 
         Page<FlwInstance> pageParam = new Page<>(request.getPageNum(), request.getPageSize());
         Page<FlwInstance> instancePage = instanceMapper.selectPage(pageParam, wrapper);
@@ -606,6 +632,16 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             wrapper.eq(FlwHisInstance::getProcessId, Long.parseLong(request.getProcessDefinitionId()));
         }
 
+        // 业务Key精确筛选
+        if (StrUtil.isNotBlank(request.getBusinessKey())) {
+            wrapper.eq(FlwHisInstance::getBusinessKey, request.getBusinessKey());
+        }
+
+        // 优先级筛选
+        if (request.getPriority() != null) {
+            wrapper.eq(FlwHisInstance::getPriority, request.getPriority());
+        }
+
         // 状态筛选
         if ("finished".equals(status)) {
             // 审批通过：instance_state = 2
@@ -615,7 +651,13 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             wrapper.in(FlwHisInstance::getInstanceState, 3, 6);
         }
 
-        wrapper.orderByDesc(FlwHisInstance::getCreateTime);
+        // 排序：优先级高的在前，或按创建时间
+        if (Boolean.TRUE.equals(request.getSortByPriority())) {
+            wrapper.orderByDesc(FlwHisInstance::getPriority)
+                   .orderByDesc(FlwHisInstance::getCreateTime);
+        } else {
+            wrapper.orderByDesc(FlwHisInstance::getCreateTime);
+        }
 
         Page<FlwHisInstance> pageParam = new Page<>(request.getPageNum(), request.getPageSize());
         Page<FlwHisInstance> hisPage = hisInstanceMapper.selectPage(pageParam, wrapper);
@@ -728,6 +770,10 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
         response.setBusinessKey(instance.getBusinessKey());
         response.setStartTime(toLocalDateTime(instance.getCreateTime()));
 
+        // 优先级信息
+        response.setPriority(instance.getPriority());
+        response.setPriorityName(getPriorityName(instance.getPriority()));
+
         // 发起人信息
         if (StrUtil.isNotBlank(instance.getCreateId())) {
             response.setStartUserId(instance.getCreateId());
@@ -741,20 +787,9 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
 
         // 当前节点信息
         response.setCurrentActivityName(instance.getCurrentNodeName());
-
+        response.setProcessNo(instance.getInstanceNo());
         // 获取当前任务的受理人/候选人信息
         fillCurrentAssigneeInfo(response, instance.getId());
-
-        // 流程编号
-        String variableJson = instance.getVariable();
-        if (StrUtil.isNotBlank(variableJson)) {
-            try {
-                Map<String, Object> variables = objectMapper.readValue(variableJson, Map.class);
-                if (variables.get("processNo") != null) {
-                    response.setProcessNo(variables.get("processNo").toString());
-                }
-            } catch (Exception ignored) {}
-        }
 
         // 扩展信息
         WfProcessExt processExt = getProcessExtByProcessId(instance.getProcessId());
@@ -832,6 +867,11 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
         response.setEndTime(toLocalDateTime(hisInstance.getEndTime()));
         response.setDurationInMillis(hisInstance.getDuration() != null ? hisInstance.getDuration().longValue() : null);
 
+        // 优先级信息
+        response.setPriority(hisInstance.getPriority());
+        response.setPriorityName(getPriorityName(hisInstance.getPriority()));
+        // 流程编号
+        response.setProcessNo(hisInstance.getInstanceNo());
         // 发起人信息
         if (StrUtil.isNotBlank(hisInstance.getCreateId())) {
             response.setStartUserId(hisInstance.getCreateId());
@@ -841,17 +881,6 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
             } catch (NumberFormatException e) {
                 response.setStartUserName(hisInstance.getCreateBy());
             }
-        }
-
-        // 流程编号
-        String variableJson = hisInstance.getVariable();
-        if (StrUtil.isNotBlank(variableJson)) {
-            try {
-                Map<String, Object> variables = objectMapper.readValue(variableJson, Map.class);
-                if (variables.get("processNo") != null) {
-                    response.setProcessNo(variables.get("processNo").toString());
-                }
-            } catch (Exception ignored) {}
         }
 
         // 状态判断
@@ -891,5 +920,76 @@ public class WfProcessInstanceServiceImpl implements WfProcessInstanceService {
     private LocalDateTime toLocalDateTime(java.util.Date date) {
         if (date == null) return null;
         return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+    }
+
+    /**
+     * 获取优先级名称
+     */
+    private String getPriorityName(Integer priority) {
+        if (priority == null || priority == 0) {
+            return "普通";
+        } else if (priority == 1) {
+            return "高优先级";
+        }
+        return "未知";
+    }
+
+    @Override
+    public List<ProcessInstanceResponse> getInstancesByBusinessKey(String businessKey) {
+        if (StrUtil.isBlank(businessKey)) {
+            throw new BusinessException(400, "业务Key不能为空");
+        }
+
+        List<ProcessInstanceResponse> results = new ArrayList<>();
+
+        // 查询运行中的实例
+        Optional<List<FlwInstance>> runningInstances = queryService.getInstancesByBusinessKey(businessKey);
+        if (runningInstances.isPresent()) {
+            for (FlwInstance instance : runningInstances.get()) {
+                results.add(convertToResponse(instance));
+            }
+        }
+
+        // 查询历史实例
+        Optional<List<FlwHisInstance>> hisInstances = queryService.getHisInstancesByBusinessKey(businessKey);
+        if (hisInstances.isPresent()) {
+            for (FlwHisInstance hisInstance : hisInstances.get()) {
+                results.add(convertToHisResponse(hisInstance));
+            }
+        }
+
+        return results;
+    }
+
+    @Override
+    public ProcessInstanceResponse getInstanceByBusinessKey(String processDefinitionId, String businessKey) {
+        if (StrUtil.isBlank(processDefinitionId)) {
+            throw new BusinessException(400, "流程定义ID不能为空");
+        }
+        if (StrUtil.isBlank(businessKey)) {
+            throw new BusinessException(400, "业务Key不能为空");
+        }
+
+        Long processId = parseProcessId(processDefinitionId);
+
+        // 查询运行中的实例
+        LambdaQueryWrapper<FlwInstance> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FlwInstance::getProcessId, processId)
+               .eq(FlwInstance::getBusinessKey, businessKey);
+        FlwInstance instance = instanceMapper.selectOne(wrapper);
+        if (instance != null) {
+            return convertToResponse(instance);
+        }
+
+        // 查询历史实例
+        LambdaQueryWrapper<FlwHisInstance> hisWrapper = new LambdaQueryWrapper<>();
+        hisWrapper.eq(FlwHisInstance::getProcessId, processId)
+                  .eq(FlwHisInstance::getBusinessKey, businessKey);
+        FlwHisInstance hisInstance = hisInstanceMapper.selectOne(hisWrapper);
+        if (hisInstance != null) {
+            return convertToHisResponse(hisInstance);
+        }
+
+        return null;
     }
 }

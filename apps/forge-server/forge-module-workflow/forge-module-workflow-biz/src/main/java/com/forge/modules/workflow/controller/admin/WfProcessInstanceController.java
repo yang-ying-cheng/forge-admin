@@ -119,4 +119,20 @@ public class WfProcessInstanceController {
     public Result<ApprovalDetailResponse> getApprovalDetail(@PathVariable String id) {
         return Result.success(wfProcessInstanceService.getApprovalDetail(id));
     }
+
+    @Operation(summary = "根据业务Key查询流程实例")
+    @GetMapping("/by-business-key")
+    @PreAuthorize("hasAuthority('workflow:instance:query')")
+    public Result<List<ProcessInstanceResponse>> getByBusinessKey(@RequestParam String businessKey) {
+        return Result.success(wfProcessInstanceService.getInstancesByBusinessKey(businessKey));
+    }
+
+    @Operation(summary = "根据流程定义和业务Key精确查询流程实例")
+    @GetMapping("/by-business-key/{processDefinitionId}/{businessKey}")
+    @PreAuthorize("hasAuthority('workflow:instance:query')")
+    public Result<ProcessInstanceResponse> getByProcessAndBusinessKey(
+            @PathVariable String processDefinitionId,
+            @PathVariable String businessKey) {
+        return Result.success(wfProcessInstanceService.getInstanceByBusinessKey(processDefinitionId, businessKey));
+    }
 }

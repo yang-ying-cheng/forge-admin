@@ -698,15 +698,7 @@ public class WfTaskServiceImpl implements WfTaskService {
             response.setStartTime(instance.getCreateTime());
 
             // 流程编号
-            String variableJson = instance.getVariable();
-            if (StrUtil.isNotBlank(variableJson)) {
-                try {
-                    Map<String, Object> variables = new ObjectMapper().readValue(variableJson, Map.class);
-                    if (variables.get("processNo") != null) {
-                        response.setProcessNo(variables.get("processNo").toString());
-                    }
-                } catch (Exception ignored) {}
-            }
+            response.setProcessNo(instance.getInstanceNo());
         }
 
         return response;
@@ -764,15 +756,8 @@ public class WfTaskServiceImpl implements WfTaskService {
             response.setStartTime(hisInstance.getCreateTime());
 
             // 流程编号
-            String variableJson = hisInstance.getVariable();
-            if (StrUtil.isNotBlank(variableJson)) {
-                try {
-                    Map<String, Object> variables = new ObjectMapper().readValue(variableJson, Map.class);
-                    if (variables.get("processNo") != null) {
-                        response.setProcessNo(variables.get("processNo").toString());
-                    }
-                } catch (Exception ignored) {}
-            }
+            response.setProcessNo(hisInstance.getInstanceNo());
+
         }
 
         // 补充审批意见信息：动作、审批意见、审批时间

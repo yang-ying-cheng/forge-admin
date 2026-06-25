@@ -1,6 +1,19 @@
 import { ref, shallowRef, markRaw } from 'vue'
 
 /**
+ * AI 审批配置（后端格式）
+ */
+export interface FlowLongAiApprovalConfig {
+  enabled: boolean
+  provider: string
+  modelName: string
+  confidenceThreshold: number
+  fallbackStrategy: string
+  customPrompt?: string
+  timeoutSeconds?: number
+}
+
+/**
  * FlowLong 流程设计器数据结构类型定义
  */
 export interface FlowLongNodeModel {
@@ -27,6 +40,23 @@ export interface FlowLongNodeModel {
   allowAppendNode?: boolean
   allowRollback?: boolean
   allowCc?: boolean
+  // 审批节点扩展配置
+  examineMode?: number
+  termAuto?: boolean
+  examineLevel?: number
+  directorLevel?: number
+  directorMode?: number
+  selectMode?: number
+  expression?: string
+  userSelectFlag?: boolean
+  // 超时提醒配置
+  remindAuto?: boolean
+  remindAdvanceMinutes?: number
+  remindIntervalHours?: number
+  remindChannels?: string[]
+  // AI 审批配置
+  aiApproval?: boolean
+  aiApprovalConfig?: FlowLongAiApprovalConfig
 }
 
 export interface FlowLongNodeAssignee {
