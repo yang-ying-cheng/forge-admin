@@ -8,7 +8,7 @@ forge-admin 是一个基于 RBAC 的企业级后台管理系统，采用 monorep
 
 **技术栈：**
 - 前端：Vue 3.4 + TypeScript + Element Plus + vxe-table + Pinia + Vite 5
-- 后端：Spring Boot 3.2.0 + MyBatis Plus 3.5.7 + MySQL + Redis + Flowable 7.0.1
+- 后端：Spring Boot 3.2.0 + MyBatis Plus 3.5.7 + MySQL + Redis + FlowLong 1.2.5
 - 认证：JWT Token（访问令牌 2 小时，刷新令牌 7 天）
 - 加密：AES-256-GCM（敏感字段）+ BCrypt（密码哈希）+ jasypt（配置文件）
 - API 文档：Knife4j，地址 `/api/doc.html`
@@ -71,16 +71,20 @@ apps/forge-server/
 ├── forge-module-system/             # 系统模块
 │   ├── forge-module-system-api/     # 实体 + DTO（82 个文件）
 │   └── forge-module-system-biz/     # Controller/Service/Mapper（含 auth、quartz）
-├── forge-module-workflow/           # 工作流模块
+├── forge-module-workflow/           # 工作流模块（基于 FlowLong）
 │   ├── forge-module-workflow-api/   # 实体 + DTO（44 个文件）
-│   └── forge-module-workflow-biz/   # Controller/Service/Mapper + Flowable 集成
+│   └── forge-module-workflow-biz/   # Controller/Service/Mapper + FlowLong 集成
+├── forge-module-ai/                 # AI 模块
+│   ├── forge-module-ai-api/         # 实体 + DTO
+│   └── forge-module-ai-biz/         # Controller/Service（调用 Python AI 服务）
 └── forge-server/                    # Spring Boot 启动入口（ForgeAdminApplication.java）
 ```
 
 **模块依赖关系：**
 ```
-forge-server ← system-biz, workflow-biz
-workflow-biz ← workflow-api, system-api, starters, flowable
+forge-server ← system-biz, workflow-biz, ai-biz
+workflow-biz ← workflow-api, system-api, starters, flowlong
+ai-biz ← ai-api, system-api, starters（调用 Python AI 服务）
 system-biz ← system-api, starters, quartz, justauth
 starter-security ← forge-common, system-api
 starter-mybatis ← forge-common
@@ -99,7 +103,8 @@ starter-redis ← forge-common
 - `com.forge.framework.security` — JWT、OAuth2 配置
 - `com.forge.framework.web` — Web 配置、全局异常、WebSocket
 - `com.forge.modules.system` — system + auth + quartz
-- `com.forge.modules.workflow` — 工作流
+- `com.forge.modules.workflow` — 工作流（FlowLong 集成）
+- `com.forge.modules.ai` — AI 模块（调用 Python 服务）
 
 ### 横切关注点
 
@@ -177,6 +182,35 @@ composables/   # 组合式函数
 **环境变量配置：**
 - `WX_MINI_APP_ID` - 微信小程序 AppID（必填，否则使用 Mock 模式）
 - `WX_MINI_APP_SECRET` - 微信小程序 AppSecret
+
+## AI 服务架构（`apps/forge-ai-python/`）
+
+系统采用 Java + Python 双语言架构实现 AI 功能：
+
+```
+apps/forge-ai-python/
+├── src/
+│   ├── api/           # FastAPI 接口（chat, document, health）
+│   ├── adapters/      # LLM 适配器（deepseek, qwen, glm, ernie）
+│   ├── config/        # 配置管理
+│   ├── models/        # Pydantic 模型
+│   ├── services/      # 业务服务
+│   └── main.py        # 应用入口
+└── pyproject.toml
+```
+
+**启动命令：**
+```bash
+cd apps/forge-ai-python
+pip install -e .
+python -m uvicorn src.main:app --reload --port 8000
+```
+
+**架构说明：**
+- Java 端（AI 模块）：管理文档元数据、调用 Python 服务、回写摘要结果
+- Python 端（AI 服务）：多模型 LLM 对话、文档解析、智能摘要
+
+Java 通过 `WebClient` 调用 Python FastAPI 服务，支持流式响应（SSE）。
 
 ## 重要模式
 
@@ -256,6 +290,7 @@ node scripts/create-module.js <模块名称> "<模块描述>"
 | BOM 版本管理 | `apps/forge-server/forge-dependencies/pom.xml` |
 | 系统模块 API 定义 | `apps/forge-server/forge-module-system/forge-module-system-api/` |
 | 工作流模块 API | `apps/forge-server/forge-module-workflow/forge-module-workflow-api/` |
+| AI 模块 API | `apps/forge-server/forge-module-ai/forge-module-ai-api/` |
 | 前端请求工具 | `apps/forge-web/src/utils/request.ts` |
 | 路由守卫 | `apps/forge-web/src/router/index.ts` |
 | vxe-table 全局配置 | `apps/forge-web/src/plugins/vxe/vxe-table-config.ts` |
@@ -267,7 +302,9 @@ node scripts/create-module.js <模块名称> "<模块描述>"
 | 安全策略配置 | `apps/forge-server/forge-module-system/forge-module-system-biz/.../auth/properties/` |
 | 等保合规文档 | `apps/forge-server/docs/SECURITY-COMPLIANCE.md` |
 | 部署检查清单 | `apps/forge-server/docs/DEPLOYMENT-CHECKLIST.md` |
-| 数据库迁移 | `apps/forge-server/forge-server/src/main/resources/db/migration/V2026061901__sys_user_security_extend.sql` |
+| 数据库迁移目录 | `apps/forge-server/forge-server/src/main/resources/db/migration/` |
+| Python AI 服务 | `apps/forge-ai-python/src/main.py` |
+| FlowLong 设计器 | `apps/forge-web/src/views/workflow/model/FlowLongModelDesigner.vue` |
 
 ## 命名约定
 
@@ -298,7 +335,7 @@ node scripts/create-module.js <模块名称> "<模块描述>"
 
 ### 业务模块权限前缀
 
-用户 `system:user`、角色 `system:role`、菜单 `system:menu`、部门 `system:dept`、岗位 `system:position`、字典 `system:dict`、参数配置 `system:config`、文件配置 `system:file-config`、通知公告 `system:notice`、在线用户 `monitor:online`、登录日志 `monitor:login-log`、操作日志 `monitor:operation-log`、定时任务 `monitor:job`
+用户 `system:user`、角色 `system:role`、菜单 `system:menu`、部门 `system:dept`、岗位 `system:position`、字典 `system:dict`、参数配置 `system:config`、文件配置 `system:file-config`、通知公告 `system:notice`、在线用户 `monitor:online`、登录日志 `monitor:login-log`、操作日志 `monitor:operation-log`、定时任务 `monitor:job`、流程分类 `workflow:category`、流程定义 `workflow:process`、流程实例 `workflow:instance`、待办任务 `workflow:task`、表单管理 `workflow:form`、模型管理 `workflow:model`、表达式管理 `workflow:expression`、监听器管理 `workflow:listener`、AI文档 `ai:document`
 
 ## 代码模板
 
