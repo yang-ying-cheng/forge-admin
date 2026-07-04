@@ -1,4 +1,4 @@
-// 紧凑：小圆角、极弱阴影、组件密度高（页面间距不变）
+// 紧凑：小圆角、极弱阴影（间距保持统一，靠圆角/阴影差异化）
 [data-style='compact'] {
   --app-radius-base: 2px;
   --app-radius-lg:   4px;
@@ -6,23 +6,4 @@
 
   --app-shadow-card:    0 1px 2px rgba(0, 0, 0, 0.06);
   --app-shadow-popover: 0 2px 8px rgba(0, 0, 0, 0.1);
-
-  // 表格/表单更紧凑（组件级 padding，不影响页面间距）
-  .el-card {
-    --el-card-padding: 8px;
-    border-radius: var(--app-radius-base);
-  }
-
-  .el-dialog {
-    --el-dialog-padding-primary: 8px;
-  }
-
-  .el-form-item {
-    margin-bottom: 12px;
-  }
-
-  .vxe-table {
-    --vxe-ui-table-cell-padding-left: 4px;
-    --vxe-ui-table-cell-padding-right: 4px;
-  }
 }
