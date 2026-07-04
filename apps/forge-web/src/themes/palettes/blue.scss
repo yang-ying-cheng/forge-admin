@@ -19,7 +19,7 @@
   --vxe-ui-primary-color: var(--app-color-primary);
 
   // 侧栏（仅在 sidebar 布局下生效）
-  [data-layout='sidebar'] & {
+  &[data-layout='sidebar'] {
     --app-sidebar-bg:     #304156;
     --app-sidebar-text:   #bfcbd9;
     --app-sidebar-active: var(--app-color-primary);

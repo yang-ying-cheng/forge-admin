@@ -16,7 +16,7 @@
 
   --vxe-ui-primary-color: var(--app-color-primary);
 
-  [data-layout='sidebar'] & {
+  &[data-layout='sidebar'] {
     --app-sidebar-bg:     #0d2818;
     --app-sidebar-text:   #b8e6c1;
     --app-sidebar-active: var(--app-color-primary);
