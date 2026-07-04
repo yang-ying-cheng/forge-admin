@@ -5,7 +5,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import {CACHE_KEY, useCache} from "@/hooks/web/useCache.ts";
 import {VxeUI} from "vxe-pc-ui";
-import { getPreset } from '@/themes'
+import { getPreset, type Palette, type LayoutKind, type StyleKind } from '@/themes'
 const { wsCache } = useCache()
 export type ThemeType = 'light' | 'dark'
 
@@ -17,7 +17,9 @@ export interface PageConfig {
 
   // 主题设置
   theme: ThemeType
-  preset: string
+  palette: Palette
+  layout: LayoutKind
+  style: StyleKind
 
   // 侧边栏设置
   sidebarCollapsed: boolean
@@ -30,13 +32,20 @@ export interface PageConfig {
 
 const LOCAL_STORAGE_KEY = 'forge_admin-page-config'
 
+// 三维度合法性枚举（防止 localStorage 被篡改为未知值）
+const VALID_PALETTES: Palette[] = ['blue', 'purple', 'green', 'crimson']
+const VALID_LAYOUTS: LayoutKind[] = ['sidebar', 'top']
+const VALID_STYLES: StyleKind[] = ['flat', 'glass', 'card', 'compact']
+
 // 默认配置
 const defaultConfig: PageConfig = {
   showTabs: true,
   maxTabsCount: 20,
   autoHideTabsOnMobile: true, // 默认移动端隐藏标签页
   theme: 'light',
-  preset: 'default',
+  palette: 'blue',
+  layout: 'sidebar',
+  style: 'flat',
   sidebarCollapsed: false,
   showBreadcrumb: true,
   showPageTransition: true,
@@ -57,10 +66,19 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
       if (saved) {
         const parsed = JSON.parse(saved)
         config.value = { ...defaultConfig, ...parsed }
-        // 校验 preset 合法性：未知 id 回落 default
-        if (parsed?.preset && getPreset(parsed.preset).id !== parsed.preset) {
-          config.value.preset = 'default'
+
+        // 老数据迁移：如有 preset 但缺少三维度，从 preset 派生
+        if (parsed?.preset && (!parsed.palette || !parsed.layout || !parsed.style)) {
+          const preset = getPreset(parsed.preset)
+          config.value.palette = preset.palette
+          config.value.layout = preset.layout
+          config.value.style = preset.style
         }
+
+        // 校验三维度合法性（防止篡改导致 unknown 值）
+        if (!VALID_PALETTES.includes(config.value.palette)) config.value.palette = 'blue'
+        if (!VALID_LAYOUTS.includes(config.value.layout)) config.value.layout = 'sidebar'
+        if (!VALID_STYLES.includes(config.value.style)) config.value.style = 'flat'
       } else {
         // 首次访问，跟随系统主题偏好
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -96,7 +114,9 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
   const resetConfig = () => {
     config.value = { ...defaultConfig }
     applyTheme(config.value.theme)
-    applyPreset(config.value.preset)
+    applyPalette(config.value.palette)
+    applyLayout(config.value.layout)
+    applyStyle(config.value.style)
   }
 
   // 打开设置面板
@@ -123,19 +143,36 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
     VxeUI.setTheme(theme)
   }
 
-  // 应用套餐
-  const applyPreset = (presetId: string) => {
-    const preset = getPreset(presetId)
-    config.value.preset = preset.id
-    document.documentElement.setAttribute('data-palette', preset.palette)
-    document.documentElement.setAttribute('data-layout', preset.layout)
-    document.documentElement.setAttribute('data-style', preset.style)
+  // 应用调色板
+  const applyPalette = (palette: Palette) => {
+    config.value.palette = palette
+    document.documentElement.setAttribute('data-palette', palette)
   }
 
-  // 切换套餐
-  const changePreset = (presetId: string) => {
-    applyPreset(presetId)
+  // 应用布局
+  const applyLayout = (layout: LayoutKind) => {
+    config.value.layout = layout
+    document.documentElement.setAttribute('data-layout', layout)
   }
+
+  // 应用样式
+  const applyStyle = (style: StyleKind) => {
+    config.value.style = style
+    document.documentElement.setAttribute('data-style', style)
+  }
+
+  // 切换套餐（一次性设置三维度）
+  const changePreset = (presetId: string) => {
+    const preset = getPreset(presetId)
+    applyPalette(preset.palette)
+    applyLayout(preset.layout)
+    applyStyle(preset.style)
+  }
+
+  // 三维度独立切换
+  const changePalette = (palette: Palette) => applyPalette(palette)
+  const changeLayout = (layout: LayoutKind) => applyLayout(layout)
+  const changeStyle = (style: StyleKind) => applyStyle(style)
 
   // 切换主题
   const toggleTheme = () => {
@@ -153,10 +190,12 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
     { deep: true }
   )
 
-  // 初始化时加载配置并应用主题
+  // 初始化时加载配置并应用
   loadConfig()
   applyTheme(config.value.theme)
-  applyPreset(config.value.preset)
+  applyPalette(config.value.palette)
+  applyLayout(config.value.layout)
+  applyStyle(config.value.style)
 
   return {
     config,
@@ -169,8 +208,13 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
     loadConfig,
     saveConfig,
     applyTheme,
-    applyPreset,
+    applyPalette,
+    applyLayout,
+    applyStyle,
     changePreset,
+    changePalette,
+    changeLayout,
+    changeStyle,
     toggleTheme
   }
 })
