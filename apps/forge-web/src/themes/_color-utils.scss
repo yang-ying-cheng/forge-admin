@@ -1,0 +1,11 @@
+@use 'sass:color';
+
+/// 与白色混合派生 light 阶梯（百分比越大越浅）
+@function light-step($c, $weight) {
+  @return color.mix(white, $c, $weight);
+}
+
+/// 与黑色混合派生 dark 阶梯（百分比越大越深）
+@function dark-step($c, $weight) {
+  @return color.mix(black, $c, $weight);
+}

@@ -1,3 +1,5 @@
+@use '../color-utils' as *;
+
 :root[data-palette='crimson'] {
   --app-color-primary: #f5222d;
   --app-color-success: #52c41a;
@@ -8,11 +10,11 @@
   --el-color-success:        var(--app-color-success);
   --el-color-warning:        var(--app-color-warning);
   --el-color-danger:         var(--app-color-danger);
-  --el-color-primary-light-3:#ff7875;
-  --el-color-primary-light-5:#ffccc7;
-  --el-color-primary-light-7:#ffa39e;
-  --el-color-primary-light-9:#fff1f0;
-  --el-color-primary-dark-2: #cf1322;
+  --el-color-primary-light-3: #{light-step(#f5222d, 30%)};
+  --el-color-primary-light-5: #{light-step(#f5222d, 50%)};
+  --el-color-primary-light-7: #{light-step(#f5222d, 70%)};
+  --el-color-primary-light-9: #{light-step(#f5222d, 90%)};
+  --el-color-primary-dark-2:  #{dark-step(#f5222d, 20%)};
 
   --vxe-ui-primary-color: var(--app-color-primary);
 
@@ -25,5 +27,5 @@
 
 :root[data-palette='crimson'][data-theme='dark'] {
   --app-color-primary:         #cf1322;
-  --el-color-primary-light-3:  #820a14;
+  --el-color-primary-light-3:  #{light-step(#cf1322, 30%)};
 }

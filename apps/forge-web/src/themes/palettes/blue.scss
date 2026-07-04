@@ -1,3 +1,5 @@
+@use '../color-utils' as *;
+
 :root[data-palette='blue'] {
   --app-color-primary: #409EFF;
   --app-color-success: #67c23a;
@@ -9,11 +11,11 @@
   --el-color-success:        var(--app-color-success);
   --el-color-warning:        var(--app-color-warning);
   --el-color-danger:         var(--app-color-danger);
-  --el-color-primary-light-3:#79bbff;
-  --el-color-primary-light-5:#a0cfff;
-  --el-color-primary-light-7:#c6e2ff;
-  --el-color-primary-light-9:#ecf5ff;
-  --el-color-primary-dark-2: #337ecc;
+  --el-color-primary-light-3: #{light-step(#409EFF, 30%)};
+  --el-color-primary-light-5: #{light-step(#409EFF, 50%)};
+  --el-color-primary-light-7: #{light-step(#409EFF, 70%)};
+  --el-color-primary-light-9: #{light-step(#409EFF, 90%)};
+  --el-color-primary-dark-2:  #{dark-step(#409EFF, 20%)};
 
   // 桥接到 vxe-table
   --vxe-ui-primary-color: var(--app-color-primary);
@@ -28,5 +30,5 @@
 
 :root[data-palette='blue'][data-theme='dark'] {
   --app-color-primary:         #3a8ee6;
-  --el-color-primary-light-3:  #1d6dbf;
+  --el-color-primary-light-3:  #{light-step(#3a8ee6, 30%)};
 }
