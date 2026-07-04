@@ -2,7 +2,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import { beforeEach, describe, it, expect } from 'vitest'
 import { usePageConfigStore } from '@/stores/pageConfig'
 
-describe('pageConfig store - 套餐切换', () => {
+describe('pageConfig store - 三维度独立切换', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
@@ -13,73 +13,146 @@ describe('pageConfig store - 套餐切换', () => {
     document.documentElement.removeAttribute('data-theme')
   })
 
-  it('默认 preset 为 default', () => {
-    const store = usePageConfigStore()
-    expect(store.config.preset).toBe('default')
+  describe('默认值', () => {
+    it('默认三维度为 blue/sidebar/flat', () => {
+      const store = usePageConfigStore()
+      expect(store.config.palette).toBe('blue')
+      expect(store.config.layout).toBe('sidebar')
+      expect(store.config.style).toBe('flat')
+    })
   })
 
-  it('applyPreset 设置三个 data 属性', () => {
-    const store = usePageConfigStore()
-    store.applyPreset('geek')
-    const html = document.documentElement
-    expect(html.getAttribute('data-palette')).toBe('purple')
-    expect(html.getAttribute('data-layout')).toBe('top')
-    expect(html.getAttribute('data-style')).toBe('glass')
+  describe('applyPalette', () => {
+    it('设置 data-palette 属性', () => {
+      const store = usePageConfigStore()
+      store.applyPalette('purple')
+      expect(store.config.palette).toBe('purple')
+      expect(document.documentElement.getAttribute('data-palette')).toBe('purple')
+    })
+
+    it('不影响 layout 与 style', () => {
+      const store = usePageConfigStore()
+      store.applyLayout('top')
+      store.applyStyle('glass')
+      store.applyPalette('green')
+      expect(store.config.layout).toBe('top')
+      expect(store.config.style).toBe('glass')
+    })
+
+    it('不影响 theme（明暗独立）', () => {
+      const store = usePageConfigStore()
+      store.applyTheme('dark')
+      store.applyPalette('crimson')
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+    })
   })
 
-  it('applyPreset 不影响 theme（明暗独立）', () => {
-    const store = usePageConfigStore()
-    store.applyTheme('dark')
-    store.applyPreset('business')
-    expect(document.documentElement.classList.contains('dark')).toBe(true)
+  describe('applyLayout', () => {
+    it('设置 data-layout 属性', () => {
+      const store = usePageConfigStore()
+      store.applyLayout('top')
+      expect(store.config.layout).toBe('top')
+      expect(document.documentElement.getAttribute('data-layout')).toBe('top')
+    })
   })
 
-  it('changePreset 同时更新 config 和 data 属性', () => {
-    const store = usePageConfigStore()
-    store.changePreset('dark-pro')
-    expect(store.config.preset).toBe('dark-pro')
-    expect(document.documentElement.getAttribute('data-palette')).toBe('crimson')
+  describe('applyStyle', () => {
+    it('设置 data-style 属性', () => {
+      const store = usePageConfigStore()
+      store.applyStyle('compact')
+      expect(store.config.style).toBe('compact')
+      expect(document.documentElement.getAttribute('data-style')).toBe('compact')
+    })
   })
 
-  it('未知 presetId 回落到 default', () => {
-    const store = usePageConfigStore()
-    store.applyPreset('unknown-id')
-    expect(store.config.preset).toBe('default')
-    expect(document.documentElement.getAttribute('data-palette')).toBe('blue')
+  describe('changePreset（套餐快捷切换）', () => {
+    it('一次性设置三维度', () => {
+      const store = usePageConfigStore()
+      store.changePreset('geek')
+      expect(store.config.palette).toBe('purple')
+      expect(store.config.layout).toBe('top')
+      expect(store.config.style).toBe('glass')
+    })
+
+    it('未知 presetId 回落到 default', () => {
+      const store = usePageConfigStore()
+      store.changePreset('unknown-id')
+      expect(store.config.palette).toBe('blue')
+      expect(store.config.layout).toBe('sidebar')
+      expect(store.config.style).toBe('flat')
+    })
   })
 
-  it('localStorage 缺失 preset 字段时回落 default', () => {
-    localStorage.setItem('forge_admin-page-config', JSON.stringify({ theme: 'dark' }))
-    const store = usePageConfigStore()
-    store.loadConfig()
-    expect(store.config.preset).toBe('default')
-  })
-
-  it('localStorage 损坏时不抛错', () => {
-    localStorage.setItem('forge_admin-page-config', '{not json')
-    expect(() => {
+  describe('loadConfig 老数据迁移', () => {
+    it('有 preset 没三维度 → 派生三维度', () => {
+      localStorage.setItem('forge_admin-page-config', JSON.stringify({
+        theme: 'dark',
+        preset: 'geek'
+      }))
       const store = usePageConfigStore()
       store.loadConfig()
-    }).not.toThrow()
+      expect(store.config.palette).toBe('purple')
+      expect(store.config.layout).toBe('top')
+      expect(store.config.style).toBe('glass')
+    })
+
+    it('三维度已被显式设置 → 优先使用三维度', () => {
+      localStorage.setItem('forge_admin-page-config', JSON.stringify({
+        theme: 'light',
+        preset: 'geek',
+        palette: 'green',
+        layout: 'sidebar',
+        style: 'card'
+      }))
+      const store = usePageConfigStore()
+      store.loadConfig()
+      expect(store.config.palette).toBe('green')
+      expect(store.config.layout).toBe('sidebar')
+      expect(store.config.style).toBe('card')
+    })
+
+    it('localStorage 损坏时不抛错', () => {
+      localStorage.setItem('forge_admin-page-config', '{not json')
+      expect(() => {
+        const store = usePageConfigStore()
+        store.loadConfig()
+      }).not.toThrow()
+    })
+
+    it('三维度被篡改为非法值 → 回落默认', () => {
+      localStorage.setItem('forge_admin-page-config', JSON.stringify({
+        palette: 'unknown',
+        layout: 'invalid',
+        style: 'wrong'
+      }))
+      const store = usePageConfigStore()
+      store.loadConfig()
+      expect(store.config.palette).toBe('blue')
+      expect(store.config.layout).toBe('sidebar')
+      expect(store.config.style).toBe('flat')
+    })
   })
 
-  it('resetConfig 把 preset 重置为 default 并应用到 DOM', () => {
-    const store = usePageConfigStore()
-    store.applyPreset('geek')
-    store.resetConfig()
-    expect(store.config.preset).toBe('default')
-    // store 自洽：resetConfig 内部应触发 applyPreset 与 applyTheme
-    expect(document.documentElement.getAttribute('data-palette')).toBe('blue')
-    expect(document.documentElement.getAttribute('data-layout')).toBe('sidebar')
-    expect(document.documentElement.getAttribute('data-style')).toBe('flat')
-  })
+  describe('resetConfig store 自洽', () => {
+    it('重置后三维度回到默认并应用到 DOM', () => {
+      const store = usePageConfigStore()
+      store.changePreset('geek')
+      store.resetConfig()
+      expect(store.config.palette).toBe('blue')
+      expect(store.config.layout).toBe('sidebar')
+      expect(store.config.style).toBe('flat')
+      expect(document.documentElement.getAttribute('data-palette')).toBe('blue')
+      expect(document.documentElement.getAttribute('data-layout')).toBe('sidebar')
+      expect(document.documentElement.getAttribute('data-style')).toBe('flat')
+    })
 
-  it('resetConfig 把 theme 重置为 light 并应用到 DOM', () => {
-    const store = usePageConfigStore()
-    store.applyTheme('dark')
-    store.resetConfig()
-    expect(store.config.theme).toBe('light')
-    expect(document.documentElement.classList.contains('light')).toBe(true)
-    expect(document.documentElement.classList.contains('dark')).toBe(false)
+    it('重置后 theme 回到 light 并应用到 DOM', () => {
+      const store = usePageConfigStore()
+      store.applyTheme('dark')
+      store.resetConfig()
+      expect(store.config.theme).toBe('light')
+      expect(document.documentElement.classList.contains('light')).toBe(true)
+      expect(document.documentElement.classList.contains('dark')).toBe(false)
+    })
   })
 })
