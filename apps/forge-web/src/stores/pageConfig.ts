@@ -5,6 +5,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import {CACHE_KEY, useCache} from "@/hooks/web/useCache.ts";
 import {VxeUI} from "vxe-pc-ui";
+import { getPreset } from '@/themes'
 const { wsCache } = useCache()
 export type ThemeType = 'light' | 'dark'
 
@@ -16,6 +17,7 @@ export interface PageConfig {
 
   // 主题设置
   theme: ThemeType
+  preset: string
 
   // 侧边栏设置
   sidebarCollapsed: boolean
@@ -34,6 +36,7 @@ const defaultConfig: PageConfig = {
   maxTabsCount: 20,
   autoHideTabsOnMobile: true, // 默认移动端隐藏标签页
   theme: 'light',
+  preset: 'default',
   sidebarCollapsed: false,
   showBreadcrumb: true,
   showPageTransition: true,
@@ -54,6 +57,10 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
       if (saved) {
         const parsed = JSON.parse(saved)
         config.value = { ...defaultConfig, ...parsed }
+        // 校验 preset 合法性：未知 id 回落 default
+        if (parsed?.preset && getPreset(parsed.preset).id !== parsed.preset) {
+          config.value.preset = 'default'
+        }
       } else {
         // 首次访问，跟随系统主题偏好
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -62,6 +69,7 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
       }
     } catch (error) {
       console.error('加载页面配置失败:', error)
+      config.value = { ...defaultConfig }
     }
   }
 
@@ -113,6 +121,20 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
     VxeUI.setTheme(theme)
   }
 
+  // 应用套餐
+  const applyPreset = (presetId: string) => {
+    const preset = getPreset(presetId)
+    config.value.preset = preset.id
+    document.documentElement.setAttribute('data-palette', preset.palette)
+    document.documentElement.setAttribute('data-layout', preset.layout)
+    document.documentElement.setAttribute('data-style', preset.style)
+  }
+
+  // 切换套餐
+  const changePreset = (presetId: string) => {
+    applyPreset(presetId)
+  }
+
   // 切换主题
   const toggleTheme = () => {
     const newTheme = config.value.theme === 'light' ? 'dark' : 'light'
@@ -132,6 +154,7 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
   // 初始化时加载配置并应用主题
   loadConfig()
   applyTheme(config.value.theme)
+  applyPreset(config.value.preset)
 
   return {
     config,
@@ -144,6 +167,8 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
     loadConfig,
     saveConfig,
     applyTheme,
+    applyPreset,
+    changePreset,
     toggleTheme
   }
 })
