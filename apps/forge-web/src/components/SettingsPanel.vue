@@ -6,6 +6,31 @@
     :size="360"
   >
     <div class="settings-panel">
+      <!-- 主题套餐 -->
+      <div class="setting-section">
+        <h3 class="section-title">主题套餐</h3>
+        <p class="section-desc">选择整体视觉风格包，包含配色、布局、风格三维度</p>
+
+        <div class="preset-grid">
+          <div
+            v-for="preset in PRESETS"
+            :key="preset.id"
+            class="preset-card"
+            :class="{ active: localConfig.preset === preset.id }"
+            @click="handlePresetChange(preset.id)"
+          >
+            <div class="preset-thumb" :data-palette="preset.palette" :data-style="preset.style">
+              <span class="preset-thumb-sidebar" v-if="preset.layout === 'sidebar'"></span>
+              <span class="preset-thumb-topbar" v-else></span>
+              <span class="preset-thumb-dot"></span>
+            </div>
+            <span class="preset-name">{{ preset.name }}</span>
+          </div>
+        </div>
+      </div>
+
+      <el-divider />
+
       <!-- 主题设置 -->
       <div class="setting-section">
         <h3 class="section-title">主题设置</h3>
@@ -111,6 +136,7 @@
 import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { usePageConfigStore, type ThemeType } from '@/stores/pageConfig'
+import { PRESETS } from '@/themes'
 
 const pageConfigStore = usePageConfigStore()
 
@@ -150,6 +176,12 @@ const handleConfigChange = (key: string, value: any) => {
   pageConfigStore.updateConfig(key as any, value)
 }
 
+// 选择套餐
+const handlePresetChange = (presetId: string) => {
+  localConfig.value.preset = presetId
+  pageConfigStore.changePreset(presetId)
+}
+
 // 保存设置
 const handleSave = () => {
   pageConfigStore.updateMultipleConfig(localConfig.value)
@@ -163,6 +195,7 @@ const handleReset = () => {
   pageConfigStore.resetConfig()
   localConfig.value = { ...pageConfigStore.config }
   pageConfigStore.applyTheme(localConfig.value.theme)
+  pageConfigStore.applyPreset(localConfig.value.preset)
   ElMessage.success('已恢复默认设置')
 }
 </script>
@@ -170,6 +203,97 @@ const handleReset = () => {
 <style scoped lang="scss">
 .settings-panel {
   padding: 0 20px;
+
+  .section-desc {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    margin: 0 0 12px 0;
+    line-height: 1.5;
+  }
+
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .preset-card {
+    cursor: pointer;
+    padding: 8px;
+    border: 2px solid var(--el-border-color-lighter);
+    border-radius: var(--el-border-radius-base);
+    transition: all 0.2s;
+
+    &:hover {
+      border-color: var(--app-color-primary);
+    }
+
+    &.active {
+      border-color: var(--app-color-primary);
+      background: var(--el-color-primary-light-9);
+    }
+
+    .preset-thumb {
+      height: 48px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      position: relative;
+      overflow: hidden;
+      background: var(--el-fill-color-lighter);
+
+      // 默认主色映射（每张缩略图反映该套餐主色）
+      &[data-palette='blue']    { background: linear-gradient(135deg, #ecf5ff, #409EFF); }
+      &[data-palette='purple']  { background: linear-gradient(135deg, #f9f0ff, #722ed1); }
+      &[data-palette='green']   { background: linear-gradient(135deg, #f6ffed, #52c41a); }
+      &[data-palette='crimson'] { background: linear-gradient(135deg, #fff1f0, #f5222d); }
+
+      // 风格映射：圆角差异
+      &[data-style='flat']      { border-radius: 4px; }
+      &[data-style='glass']     { border-radius: 12px; }
+      &[data-style='card']      { border-radius: 8px; }
+      &[data-style='compact']   { border-radius: 2px; }
+
+      .preset-thumb-sidebar,
+      .preset-thumb-topbar {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.6);
+      }
+
+      .preset-thumb-sidebar {
+        left: 4px;
+        top: 4px;
+        bottom: 4px;
+        width: 12px;
+        border-radius: 2px;
+      }
+
+      .preset-thumb-topbar {
+        left: 4px;
+        right: 4px;
+        top: 4px;
+        height: 10px;
+        border-radius: 2px;
+      }
+
+      .preset-thumb-dot {
+        position: absolute;
+        right: 6px;
+        bottom: 6px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.9);
+      }
+    }
+
+    .preset-name {
+      display: block;
+      text-align: center;
+      font-size: 13px;
+      color: var(--el-text-color-primary);
+    }
+  }
 
   .setting-section {
     margin-bottom: 24px;
