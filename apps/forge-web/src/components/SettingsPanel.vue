@@ -49,6 +49,22 @@
             />
           </div>
 
+          <!-- 自定义主色（仅 palette='custom' 时显示） -->
+          <div class="setting-item" v-if="localConfig.palette === 'custom'">
+            <div class="item-label">
+              <span>自定义主色</span>
+              <p class="item-desc">点击选色，实时预览</p>
+            </div>
+            <div class="custom-color-picker">
+              <el-color-picker
+                v-model="localConfig.customPrimary"
+                :predefine="predefinedPrimaries"
+                @change="(val: string | null) => handleCustomPrimaryChange(val)"
+              />
+              <span class="custom-primary-hex">{{ localConfig.customPrimary }}</span>
+            </div>
+          </div>
+
           <!-- 布局 -->
           <div class="setting-item">
             <div class="item-label">
@@ -184,7 +200,7 @@
 import { ref, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { usePageConfigStore, type ThemeType } from '@/stores/pageConfig'
-import { PRESETS } from '@/themes'
+import { PRESETS, DEFAULT_CUSTOM_PRIMARY, isValidPrimary } from '@/themes'
 import type { Palette, LayoutKind, StyleKind } from '@/themes'
 
 const pageConfigStore = usePageConfigStore()
@@ -200,7 +216,8 @@ const paletteOptions = [
   { label: '蓝', value: 'blue' },
   { label: '紫', value: 'purple' },
   { label: '绿', value: 'green' },
-  { label: '红', value: 'crimson' }
+  { label: '红', value: 'crimson' },
+  { label: '自定义', value: 'custom' }
 ]
 const layoutOptions = [
   { label: '侧栏', value: 'sidebar' },
@@ -211,6 +228,18 @@ const styleOptions = [
   { label: '玻璃', value: 'glass' },
   { label: '卡片', value: 'card' },
   { label: '紧凑', value: 'compact' }
+]
+
+// 预设常用色（点击即填入）
+const predefinedPrimaries = [
+  '#409EFF',  // EP 蓝
+  '#13C2C2',  // 青
+  '#722ED1',  // 紫
+  '#EB2F96',  // 粉
+  '#52C41A',  // 绿
+  '#FAAD14',  // 黄
+  '#FF7A45',  // 橙
+  '#F5222D'   // 红
 ]
 
 // 高级设置展开状态（默认收起）
@@ -257,6 +286,18 @@ const isPresetActive = (preset: { palette: Palette; layout: LayoutKind; style: S
 const handlePaletteChange = (val: Palette) => pageConfigStore.changePalette(val)
 const handleLayoutChange = (val: LayoutKind) => pageConfigStore.changeLayout(val)
 const handleStyleChange = (val: StyleKind) => pageConfigStore.changeStyle(val)
+
+// 自定义主色切换（el-color-picker 清空时 val 为 null，回落默认）
+const handleCustomPrimaryChange = (val: string | null) => {
+  if (val === null) {
+    localConfig.value.customPrimary = DEFAULT_CUSTOM_PRIMARY
+    pageConfigStore.changeCustomPrimary(DEFAULT_CUSTOM_PRIMARY)
+    return
+  }
+  if (isValidPrimary(val)) {
+    pageConfigStore.changeCustomPrimary(val)
+  }
+}
 
 // 选择套餐
 const handlePresetChange = (presetId: string) => {
@@ -412,6 +453,19 @@ const handleReset = () => {
           color: var(--el-text-color-secondary);
           margin: 0;
           line-height: 1.5;
+        }
+      }
+
+      .custom-color-picker {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+
+        .custom-primary-hex {
+          font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+          font-size: 12px;
+          color: var(--el-text-color-secondary);
+          text-transform: uppercase;
         }
       }
     }
