@@ -24,9 +24,12 @@
   --app-gap-page:    10px;
   --app-gap-card:    10px;
   --app-density-pad: 10px;
+}
 
-  // ─── 桥接到 Element Plus（让风格切换影响 EP 组件） ───
-  // 风格文件覆盖 --app-* 后，EP 变量自动跟随
+// ─── 桥接到 Element Plus（让风格切换影响 EP 组件） ───
+// 用 :root:root (特异性 0,2,0) 高于 EP 的 :root (0,1,0) 和 html.dark (0,1,1)，
+// 避免 vite build 重排 CSS 顺序后被 EP 默认值覆盖
+:root:root {
   --el-border-radius-base:  var(--app-radius-base);
   --el-border-radius-small: var(--app-radius-sm);
   --el-border-radius-round: var(--app-radius-lg);
