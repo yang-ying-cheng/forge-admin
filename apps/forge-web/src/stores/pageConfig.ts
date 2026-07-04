@@ -5,7 +5,8 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import {CACHE_KEY, useCache} from "@/hooks/web/useCache.ts";
 import {VxeUI} from "vxe-pc-ui";
-import { getPreset, type Palette, type LayoutKind, type StyleKind } from '@/themes'
+import { getPreset, type Palette, type LayoutKind, type StyleKind, DEFAULT_CUSTOM_PRIMARY, isValidPrimary } from '@/themes'
+import { lightStep, darkStep } from '@/themes/color-utils'
 const { wsCache } = useCache()
 export type ThemeType = 'light' | 'dark'
 
@@ -18,6 +19,7 @@ export interface PageConfig {
   // 主题设置
   theme: ThemeType
   palette: Palette
+  customPrimary: string // custom 调色板的主色（HEX）
   layout: LayoutKind
   style: StyleKind
 
@@ -33,7 +35,7 @@ export interface PageConfig {
 const LOCAL_STORAGE_KEY = 'forge_admin-page-config'
 
 // 三维度合法性枚举（防止 localStorage 被篡改为未知值）
-const VALID_PALETTES: Palette[] = ['blue', 'purple', 'green', 'crimson']
+const VALID_PALETTES: Palette[] = ['blue', 'purple', 'green', 'crimson', 'custom']
 const VALID_LAYOUTS: LayoutKind[] = ['sidebar', 'top']
 const VALID_STYLES: StyleKind[] = ['flat', 'glass', 'card', 'compact']
 
@@ -44,6 +46,7 @@ const defaultConfig: PageConfig = {
   autoHideTabsOnMobile: true, // 默认移动端隐藏标签页
   theme: 'light',
   palette: 'blue',
+  customPrimary: DEFAULT_CUSTOM_PRIMARY,
   layout: 'sidebar',
   style: 'flat',
   sidebarCollapsed: false,
@@ -79,6 +82,11 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
         if (!VALID_PALETTES.includes(config.value.palette)) config.value.palette = 'blue'
         if (!VALID_LAYOUTS.includes(config.value.layout)) config.value.layout = 'sidebar'
         if (!VALID_STYLES.includes(config.value.style)) config.value.style = 'flat'
+
+        // 校验 customPrimary 合法性
+        if (!isValidPrimary(config.value.customPrimary)) {
+          config.value.customPrimary = DEFAULT_CUSTOM_PRIMARY
+        }
       } else {
         // 首次访问，跟随系统主题偏好
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -146,7 +154,55 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
   // 应用调色板
   const applyPalette = (palette: Palette) => {
     config.value.palette = palette
-    document.documentElement.setAttribute('data-palette', palette)
+    if (palette === 'custom') {
+      applyCustomPalette(config.value.customPrimary)
+    } else {
+      document.documentElement.setAttribute('data-palette', palette)
+      // 切回预设时清理 custom 写入的 inline style，避免残留覆盖预设
+      clearCustomPaletteInlineStyle()
+    }
+  }
+
+  // 应用 custom 调色板：根据主色派生 EP 颜色阶梯并写到 inline style
+  const applyCustomPalette = (primary: string) => {
+    const safe = isValidPrimary(primary) ? primary : DEFAULT_CUSTOM_PRIMARY
+    config.value.customPrimary = safe
+    document.documentElement.setAttribute('data-palette', 'custom')
+    // inline style 直接覆盖 EP 变量（特异性 1,0,0,0 高于任何 SCSS 选择器）
+    const root = document.documentElement
+    root.style.setProperty('--app-color-primary', safe)
+    root.style.setProperty('--el-color-primary', safe)
+    root.style.setProperty('--el-color-primary-light-3', lightStep(safe, 30))
+    root.style.setProperty('--el-color-primary-light-5', lightStep(safe, 50))
+    root.style.setProperty('--el-color-primary-light-7', lightStep(safe, 70))
+    root.style.setProperty('--el-color-primary-light-9', lightStep(safe, 90))
+    root.style.setProperty('--el-color-primary-dark-2', darkStep(safe, 20))
+    root.style.setProperty('--vxe-ui-primary-color', safe)
+  }
+
+  // 清理 custom 调色板写入的 inline style
+  const clearCustomPaletteInlineStyle = () => {
+    const root = document.documentElement
+    ;[
+      '--app-color-primary',
+      '--el-color-primary',
+      '--el-color-primary-light-3',
+      '--el-color-primary-light-5',
+      '--el-color-primary-light-7',
+      '--el-color-primary-light-9',
+      '--el-color-primary-dark-2',
+      '--vxe-ui-primary-color'
+    ].forEach(prop => root.style.removeProperty(prop))
+  }
+
+  /** 用户在颜色选择器中改 custom 主色 */
+  const changeCustomPrimary = (primary: string) => {
+    if (config.value.palette === 'custom') {
+      applyCustomPalette(primary)
+    } else {
+      // 暂存到 config，但不应用（等切到 custom 时再 apply）
+      config.value.customPrimary = isValidPrimary(primary) ? primary : DEFAULT_CUSTOM_PRIMARY
+    }
   }
 
   // 应用布局
@@ -215,6 +271,7 @@ export const usePageConfigStore = defineStore('pageConfig', () => {
     changePalette,
     changeLayout,
     changeStyle,
+    changeCustomPrimary,
     toggleTheme
   }
 })
