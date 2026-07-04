@@ -20,10 +20,6 @@
   --app-shadow-card:    0 4px 16px rgba(0, 0, 0, 0.08);
   --app-shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.12);
 
-  --app-gap-page:    16px;
-  --app-gap-card:    16px;
-  --app-density-pad: 12px;
-
   // 应用到关键容器
   .el-card { @include glass-surface; }
 }

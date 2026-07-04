@@ -24,6 +24,14 @@
   --app-gap-page:    10px;
   --app-gap-card:    10px;
   --app-density-pad: 10px;
+
+  // ─── 桥接到 Element Plus（让风格切换影响 EP 组件） ───
+  // 风格文件覆盖 --app-* 后，EP 变量自动跟随
+  --el-border-radius-base:  var(--app-radius-base);
+  --el-border-radius-small: var(--app-radius-sm);
+  --el-border-radius-round: var(--app-radius-lg);
+  --el-box-shadow:          var(--app-shadow-card);
+  --el-box-shadow-light:    var(--app-shadow-popover);
 }
 
 // dark 通用覆盖（不依赖 palette，调中性色）
