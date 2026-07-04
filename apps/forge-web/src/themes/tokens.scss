@@ -43,3 +43,10 @@
   --app-shadow-card:   0 1px 4px rgba(0, 0, 0, 0.3);
   --app-shadow-popover:0 2px 12px rgba(0, 0, 0, 0.5);
 }
+
+// dark 模式下侧栏色统一为深灰，避免各调色板亮色调侧栏（如 #304156/#1f0f3d/#0d2818/#1a0808）
+// 在暗背景下过于突兀；用 :root:root 提升特异性确保覆盖各调色板的侧栏色
+:root:root[data-theme='dark'][data-layout='sidebar'] {
+  --app-sidebar-bg:     #1d1e1f;
+  --app-sidebar-text:   #c9c9c9;
+}
